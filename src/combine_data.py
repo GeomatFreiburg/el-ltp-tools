@@ -77,7 +77,7 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def get_filenames():
+def get_filenames(base_filename):
     filenames = []
     for i in range(1, 5):
         filenames.append(base_filename + str(i).zfill(5) + ".tif")
@@ -158,29 +158,29 @@ def apply_threshold(data, sigma, window_size, iterations, min_intensity):
     return data
 
 
-def combine_data(folder_name):
-    filenames = get_filenames()
+def combine_data(folder_name, base_filename, cosmic_sigma, cosmic_window, cosmic_iterations, cosmic_min):
+    filenames = get_filenames(base_filename)
     img = fabio.open(folder_name + "/" + filenames[0])
     # Convert to float immediately after loading
     img.data = img.data.astype(np.float64)
     img.data = apply_threshold(
         img.data,
-        args.cosmic_sigma,
-        args.cosmic_window,
-        args.cosmic_iterations,
-        args.cosmic_min,
+        cosmic_sigma,
+        cosmic_window,
+        cosmic_iterations,
+        cosmic_min,
     )
-
+    
     for filename in filenames[1:]:
         img_new = fabio.open(folder_name + "/" + filename)
         # Convert to float immediately after loading
         img_new.data = img_new.data.astype(np.float64)
         img_new.data = apply_threshold(
             img_new.data,
-            args.cosmic_sigma,
-            args.cosmic_window,
-            args.cosmic_iterations,
-            args.cosmic_min,
+            cosmic_sigma,
+            cosmic_window,
+            cosmic_iterations,
+            cosmic_min,
         )
         img.data += img_new.data
     return img
@@ -254,9 +254,23 @@ def process_measurements(args):
             for folder_name in group["folders"]:
                 print(f"    Combining data from {folder_name}")
                 if combined_data is None:
-                    combined_data = combine_data(folder + "/" + folder_name)
+                    combined_data = combine_data(
+                        folder + "/" + folder_name,
+                        args.base_filename,
+                        args.cosmic_sigma,
+                        args.cosmic_window,
+                        args.cosmic_iterations,
+                        args.cosmic_min
+                    )
                 else:
-                    new_data = combine_data(folder + "/" + folder_name)
+                    new_data = combine_data(
+                        folder + "/" + folder_name,
+                        args.base_filename,
+                        args.cosmic_sigma,
+                        args.cosmic_window,
+                        args.cosmic_iterations,
+                        args.cosmic_min
+                    )
                     combined_data.data += new_data.data
             
             # Save the combined data to the output folder
@@ -271,5 +285,4 @@ def process_measurements(args):
 if __name__ == "__main__":
     args = parse_arguments()
     folder = args.input
-    base_filename = args.base_filename
     process_measurements(args)
