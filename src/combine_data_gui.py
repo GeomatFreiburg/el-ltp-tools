@@ -261,6 +261,33 @@ class MainWindow(QMainWindow):
         self.log_output.setReadOnly(True)
         log_layout.addWidget(self.log_output)
         
+        # Add clear button below log
+        self.clear_button = QPushButton("🗑")  # Trash can icon
+        self.clear_button.setToolTip("Clear log output")
+        self.clear_button.setStyleSheet("""
+            QPushButton {
+                background-color: #666666;
+                color: white;
+                border: none;
+                padding: 2px;
+                font-size: 14px;
+                min-width: 24px;
+                min-height: 24px;
+                max-width: 24px;
+                max-height: 24px;
+            }
+            QPushButton:hover {
+                background-color: #555555;
+            }
+        """)
+        self.clear_button.clicked.connect(self.clear_log)
+        
+        # Create a layout for the clear button to align it to the right
+        clear_layout = QHBoxLayout()
+        clear_layout.addStretch()  # Push button to the right
+        clear_layout.addWidget(self.clear_button)
+        log_layout.addLayout(clear_layout)
+        
         log_group.setLayout(log_layout)
         right_layout.addWidget(log_group)
 
@@ -382,6 +409,10 @@ class MainWindow(QMainWindow):
         self.log_output.append(f'<span style="color: gray;">{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</span>')
         self.log_output.append("=" * 40)
         self.log_output.append("")  # Add empty line after completion message
+
+    def clear_log(self):
+        """Clear the log output."""
+        self.log_output.clear()
 
 def main():
     app = QApplication(sys.argv)
