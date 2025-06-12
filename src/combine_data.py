@@ -19,12 +19,14 @@ def parse_arguments():
                       help='Base filename for the measurements (default: CaSiO3_)')
     parser.add_argument('--prefix', '-p', type=str, default="CaSiO3_2",
                       help='Prefix for output files (default: CaSiO3_2)')
-    parser.add_argument('--sigma', type=float, default=5.0,
+    parser.add_argument('--cosmic-sigma', type=float, default=6.0,
                       help='Number of standard deviations above local mean to consider a pixel as cosmic ray (default: 5.0)')
-    parser.add_argument('--window-size', type=int, default=5,
+    parser.add_argument('--cosmic-window', type=int, default=10,
                       help='Size of the window for local statistics (default: 5)')
-    parser.add_argument('--iterations', type=int, default=3,
+    parser.add_argument('--cosmic-iterations', type=int, default=3,
                       help='Number of iterations for cosmic ray detection (default: 3)')
+    parser.add_argument('--cosmic-min', type=float, default=50.0,
+                      help='Minimum intensity threshold for cosmic ray detection (default: 100.0)')
     return parser.parse_args()
 
 def get_filenames():
@@ -33,7 +35,7 @@ def get_filenames():
         filenames.append(base_filename + str(i).zfill(5) + ".tif")
     return filenames
 
-def detect_cosmic_rays(data, sigma, window_size):
+def detect_cosmic_rays(data, sigma, window_size, min_intensity):
     """Detect cosmic rays by comparing pixel values to local statistics."""
     # Create a mask for positive values
     positive_mask = data > 0
@@ -71,9 +73,12 @@ def detect_cosmic_rays(data, sigma, window_size):
     # Combine masks
     combined_mask = np.logical_or(cosmic_mask, intensity_mask)
     
+    # Apply minimum intensity threshold
+    combined_mask = np.logical_and(combined_mask, data > min_intensity)
+    
     return combined_mask
 
-def apply_threshold(data, sigma, window_size, iterations):
+def apply_threshold(data, sigma, window_size, iterations, min_intensity):
     """Apply cosmic ray detection and set detected pixels to NaN."""
     if sigma is not None:
         # Convert to float before any operations
@@ -85,7 +90,7 @@ def apply_threshold(data, sigma, window_size, iterations):
         # Iterate multiple times to catch all cosmic rays
         for i in range(iterations):
             # Detect cosmic rays
-            cosmic_mask = detect_cosmic_rays(data, sigma, window_size)
+            cosmic_mask = detect_cosmic_rays(data, sigma, window_size, min_intensity)
             
             # Set cosmic ray pixels to NaN
             data[cosmic_mask] = np.nan
@@ -103,13 +108,13 @@ def combine_data(folder_name):
     img = fabio.open(folder_name + "/" + filenames[0])
     # Convert to float immediately after loading
     img.data = img.data.astype(np.float64)
-    img.data = apply_threshold(img.data, args.sigma, args.window_size, args.iterations)
+    img.data = apply_threshold(img.data, args.cosmic_sigma, args.cosmic_window, args.cosmic_iterations, args.cosmic_min)
     
     for filename in filenames[1:]:
         img_new = fabio.open(folder_name + "/" + filename)
         # Convert to float immediately after loading
         img_new.data = img_new.data.astype(np.float64)
-        img_new.data = apply_threshold(img_new.data, args.sigma, args.window_size, args.iterations)
+        img_new.data = apply_threshold(img_new.data, args.cosmic_sigma, args.cosmic_window, args.cosmic_iterations, args.cosmic_min)
         img.data += img_new.data
     return img
 
