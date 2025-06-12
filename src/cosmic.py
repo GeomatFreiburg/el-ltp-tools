@@ -94,7 +94,7 @@ def remove_cosmic_rays(image, sigma, window_size, iterations, min_intensity):
     iterations : int
         Number of times to repeat the cosmic ray detection process.
     min_intensity : float
-        Minimum pixel intensity threshold for cosmic ray detection. Values below this 
+        Minimum pixel intensity threshold for cosmic ray detection. Values below this
         threshold are not considered as cosmic rays.
 
     Returns

@@ -2,9 +2,8 @@ import fabio
 import os
 import argparse
 import numpy as np
-from scipy import ndimage
 import json
-from cosmic import detect_cosmic_rays, remove_cosmic_rays
+from cosmic import remove_cosmic_rays
 
 
 def parse_arguments():
@@ -73,16 +72,21 @@ def parse_arguments():
 
 def get_filenames(folder_path):
     """Get all .tif and .tiff files in the specified folder."""
-    return [f for f in os.listdir(folder_path) 
-            if os.path.isfile(os.path.join(folder_path, f)) 
-            and f.lower().endswith(('.tif', '.tiff'))]
+    return [
+        f
+        for f in os.listdir(folder_path)
+        if os.path.isfile(os.path.join(folder_path, f))
+        and f.lower().endswith((".tif", ".tiff"))
+    ]
 
 
-def combine_data(folder_name, cosmic_sigma, cosmic_window, cosmic_iterations, cosmic_min):
+def combine_data(
+    folder_name, cosmic_sigma, cosmic_window, cosmic_iterations, cosmic_min
+):
     filenames = get_filenames(folder_name)
     if not filenames:
         raise FileNotFoundError(f"No files found in {folder_name}")
-        
+
     # Get the first file to initialize the combined image
     first_file = os.path.join(folder_name, filenames[0])
     img = fabio.open(first_file)
@@ -95,7 +99,7 @@ def combine_data(folder_name, cosmic_sigma, cosmic_window, cosmic_iterations, co
         cosmic_iterations,
         cosmic_min,
     )
-    
+
     # Process remaining files
     for filename in filenames[1:]:
         file_path = os.path.join(folder_name, filename)
@@ -117,87 +121,95 @@ def get_folder_groups(start_idx, config, input_folder):
     """Group folders based on config and available folders, starting from start_idx."""
     groups = []
     current_index = start_idx
-    
+
     print(f"  Checking folders starting from g{current_index}")
-    
+
     for group_config in config:
         group_folders = []
-        print(f"    Looking for {group_config['num_images']} images for group '{group_config['name']}'")
-        
+        print(
+            f"    Looking for {group_config['num_images']} images for group '{group_config['name']}'"
+        )
+
         for _ in range(group_config["num_images"]):
             folder_name = f"g{current_index}"
             folder_path = os.path.join(input_folder, folder_name)
             print(f"      Checking folder: {folder_path}")
-            
+
             if os.path.exists(folder_path):
                 print(f"      Found folder: {folder_name}")
                 group_folders.append(folder_name)
             else:
                 print(f"      Folder not found: {folder_name}")
-            
+
             current_index += 1
-        
+
         if group_folders:
             groups.append({"name": group_config["name"], "folders": group_folders})
-            print(f"    Added group '{group_config['name']}' with {len(group_folders)} folders")
+            print(
+                f"    Added group '{group_config['name']}' with {len(group_folders)} folders"
+            )
         else:
             print(f"    No folders found for group '{group_config['name']}'")
-    
+
     return groups, current_index
 
 
 def process_measurements(args, callback=None):
     """Process all measurements and combine data according to groups."""
     input_folder = args.input
-    
+
     # Check if input directory exists
     if not os.path.exists(input_folder):
         raise FileNotFoundError(f"Input directory not found: {input_folder}")
-    
+
     # Check if input directory is readable
     if not os.access(input_folder, os.R_OK):
         raise PermissionError(f"No permission to read input directory: {input_folder}")
-    
+
     # Create output directory if it doesn't exist
     try:
         os.makedirs(args.output, exist_ok=True)
     except PermissionError:
-        raise PermissionError(f"No permission to create output directory: {args.output}")
-    
+        raise PermissionError(
+            f"No permission to create output directory: {args.output}"
+        )
+
     # Parse the configuration
     try:
         config = json.loads(args.config)
     except json.JSONDecodeError as e:
         raise ValueError(f"Error parsing configuration JSON: {e}")
-    
+
     current_index = args.start
     measurement_number = 1
-    
+
     while current_index <= args.end:
         if callback and not callback():  # Check if we should stop
             return
-            
-        print(f"\nProcessing group {measurement_number} (starting from g{current_index})...")
+
+        print(
+            f"\nProcessing group {measurement_number} (starting from g{current_index})..."
+        )
         groups, next_index = get_folder_groups(current_index, config, input_folder)
-        
+
         if not groups:  # If no valid groups were found, break the loop
             raise ValueError(f"No valid groups found starting from g{current_index}")
-            
+
         for group in groups:
             if callback and not callback():  # Check if we should stop
                 return
-                
+
             print(f"  Processing {group['name']} measurements...")
             combined_data = None
-            
+
             for folder_name in group["folders"]:
                 if callback and not callback():  # Check if we should stop
                     return
-                    
+
                 folder_path = os.path.join(input_folder, folder_name)
                 if not os.path.exists(folder_path):
                     raise FileNotFoundError(f"Folder not found: {folder_path}")
-                    
+
                 print(f"    Combining data from {folder_name}")
                 try:
                     if combined_data is None:
@@ -206,7 +218,7 @@ def process_measurements(args, callback=None):
                             args.cosmic_sigma,
                             args.cosmic_window,
                             args.cosmic_iterations,
-                            args.cosmic_min
+                            args.cosmic_min,
                         )
                     else:
                         new_data = combine_data(
@@ -214,14 +226,16 @@ def process_measurements(args, callback=None):
                             args.cosmic_sigma,
                             args.cosmic_window,
                             args.cosmic_iterations,
-                            args.cosmic_min
+                            args.cosmic_min,
                         )
                         combined_data.data += new_data.data
                 except FileNotFoundError as e:
-                    raise FileNotFoundError(f"File not found in {folder_path}: {str(e)}")
+                    raise FileNotFoundError(
+                        f"File not found in {folder_path}: {str(e)}"
+                    )
                 except Exception as e:
                     raise RuntimeError(f"Error processing {folder_path}: {str(e)}")
-            
+
             if combined_data is not None:
                 # Save the combined data to the output folder
                 output_filename = f"{args.output}/{args.prefix}_{group['name']}_{str(measurement_number).zfill(4)}.tif"
@@ -229,8 +243,10 @@ def process_measurements(args, callback=None):
                     combined_data.write(output_filename)
                     print(f"    Saved combined data to {output_filename}")
                 except Exception as e:
-                    raise RuntimeError(f"Error saving output file {output_filename}: {str(e)}")
-        
+                    raise RuntimeError(
+                        f"Error saving output file {output_filename}: {str(e)}"
+                    )
+
         current_index = next_index
         measurement_number += 1
 
