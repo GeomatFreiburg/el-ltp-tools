@@ -65,7 +65,7 @@ class ConversionWorker(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Data Conversion Tool")
+        self.setWindowTitle("Combine Soller Slit P02.2 Data")
         self.setMinimumWidth(800)
         self.setMinimumHeight(600)
 
