@@ -170,7 +170,7 @@ class MainWindow(QMainWindow):
         # Create table widget
         self.config_table = QTableWidget()
         self.config_table.setColumnCount(2)
-        self.config_table.setHorizontalHeaderLabels(["Number of Images", "Name"])
+        self.config_table.setHorizontalHeaderLabels(["N Images", "Name"])
         self.config_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.config_table.setMinimumHeight(200)  # Set minimum height for the table
         
