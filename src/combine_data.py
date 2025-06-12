@@ -19,8 +19,12 @@ def parse_arguments():
                       help='Base filename for the measurements (default: CaSiO3_)')
     parser.add_argument('--prefix', '-p', type=str, default="CaSiO3_2",
                       help='Prefix for output files (default: CaSiO3_2)')
-    parser.add_argument('--threshold', '-t', type=float, default=None,
-                      help='Threshold value for pixel filtering. Pixels above this value and their adjacent pixels will be set to NaN.')
+    parser.add_argument('--sigma', type=float, default=5.0,
+                      help='Number of standard deviations above local mean to consider a pixel as cosmic ray (default: 5.0)')
+    parser.add_argument('--window-size', type=int, default=5,
+                      help='Size of the window for local statistics (default: 5)')
+    parser.add_argument('--iterations', type=int, default=3,
+                      help='Number of iterations for cosmic ray detection (default: 3)')
     return parser.parse_args()
 
 def get_filenames():
@@ -29,34 +33,83 @@ def get_filenames():
         filenames.append(base_filename + str(i).zfill(5) + ".tif")
     return filenames
 
-def apply_threshold(data, threshold):
-    """Apply threshold filtering to the data, setting values above threshold and adjacent pixels to NaN."""
-    if threshold is not None:
-        data = data.astype(float)  # Convert to float to support NaN
+def detect_cosmic_rays(data, sigma, window_size):
+    """Detect cosmic rays by comparing pixel values to local statistics."""
+    # Create a mask for positive values
+    positive_mask = data > 0
+    
+    # Create a copy of data where negative values are set to 0
+    data_positive = np.where(positive_mask, data, 0)
+    
+    # Calculate local mean and standard deviation using only positive values
+    # First, calculate the sum and count of positive values in each window
+    sum_positive = ndimage.uniform_filter(data_positive, size=window_size)
+    count_positive = ndimage.uniform_filter(positive_mask.astype(float), size=window_size)
+    
+    # Calculate mean (avoiding division by zero)
+    local_mean = np.where(count_positive > 0, sum_positive / count_positive, 0)
+    
+    # Calculate variance for positive values
+    sum_squares = ndimage.uniform_filter(data_positive**2, size=window_size)
+    local_var = np.where(count_positive > 0,
+                        (sum_squares / count_positive) - local_mean**2,
+                        0)
+    
+    local_std = np.sqrt(np.maximum(local_var, 0))
+    
+    # Calculate z-scores only for positive values
+    z_scores = np.zeros_like(data)
+    valid_mask = np.logical_and(positive_mask, local_std > 0)
+    z_scores[valid_mask] = (data[valid_mask] - local_mean[valid_mask]) / (local_std[valid_mask] + 1e-10)
+    
+    # Create mask for cosmic rays (pixels that are significantly above local mean)
+    cosmic_mask = np.logical_and(z_scores > sigma, positive_mask)
+    
+    # Also mask pixels that are more than 2x the local mean
+    intensity_mask = np.logical_and(data > (2 * local_mean), positive_mask)
+    
+    # Combine masks
+    combined_mask = np.logical_or(cosmic_mask, intensity_mask)
+    
+    return combined_mask
+
+def apply_threshold(data, sigma, window_size, iterations):
+    """Apply cosmic ray detection and set detected pixels to NaN."""
+    if sigma is not None:
+        # Convert to float before any operations
+        data = data.astype(np.float64)
         
-        # Create mask for pixels above threshold
-        mask = data > threshold
+        # Store counts for each iteration
+        cosmic_counts = []
         
-        # Create a kernel for adjacent pixels (including diagonals)
-        kernel = np.ones((3, 3), dtype=bool)
-        kernel[1, 1] = False  # Exclude the center pixel as it's already masked
+        # Iterate multiple times to catch all cosmic rays
+        for i in range(iterations):
+            # Detect cosmic rays
+            cosmic_mask = detect_cosmic_rays(data, sigma, window_size)
+            
+            # Set cosmic ray pixels to NaN
+            data[cosmic_mask] = np.nan
+            
+            # Store the count
+            cosmic_counts.append(np.sum(cosmic_mask))
         
-        # Dilate the mask to include adjacent pixels
-        dilated_mask = ndimage.binary_dilation(mask, kernel)
-        
-        # Apply the mask to set both thresholded and adjacent pixels to NaN
-        data[dilated_mask] = np.nan
+        # Print all counts in one line
+        print(f"    Found cosmic rays: {', '.join(map(str, cosmic_counts))}")
         
     return data
 
 def combine_data(folder_name):
     filenames = get_filenames()
     img = fabio.open(folder_name + "/" + filenames[0])
-    img.data = apply_threshold(img.data, args.threshold)
+    # Convert to float immediately after loading
+    img.data = img.data.astype(np.float64)
+    img.data = apply_threshold(img.data, args.sigma, args.window_size, args.iterations)
     
     for filename in filenames[1:]:
         img_new = fabio.open(folder_name + "/" + filename)
-        img_new.data = apply_threshold(img_new.data, args.threshold)
+        # Convert to float immediately after loading
+        img_new.data = img_new.data.astype(np.float64)
+        img_new.data = apply_threshold(img_new.data, args.sigma, args.window_size, args.iterations)
         img.data += img_new.data
     return img
 
