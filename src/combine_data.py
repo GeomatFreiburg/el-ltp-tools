@@ -113,7 +113,7 @@ def combine_data(folder_name, cosmic_sigma, cosmic_window, cosmic_iterations, co
     return img
 
 
-def get_folder_groups(start_idx, config):
+def get_folder_groups(start_idx, config, input_folder):
     """Group folders based on config and available folders, starting from start_idx."""
     groups = []
     current_index = start_idx
@@ -126,7 +126,7 @@ def get_folder_groups(start_idx, config):
         
         for _ in range(group_config["num_images"]):
             folder_name = f"g{current_index}"
-            folder_path = os.path.join(folder, folder_name)
+            folder_path = os.path.join(input_folder, folder_name)
             print(f"      Checking folder: {folder_path}")
             
             if os.path.exists(folder_path):
@@ -148,16 +148,15 @@ def get_folder_groups(start_idx, config):
 
 def process_measurements(args, callback=None):
     """Process all measurements and combine data according to groups."""
-    global folder  # Make folder accessible to get_folder_groups
-    folder = args.input
+    input_folder = args.input
     
     # Check if input directory exists
-    if not os.path.exists(folder):
-        raise FileNotFoundError(f"Input directory not found: {folder}")
+    if not os.path.exists(input_folder):
+        raise FileNotFoundError(f"Input directory not found: {input_folder}")
     
     # Check if input directory is readable
-    if not os.access(folder, os.R_OK):
-        raise PermissionError(f"No permission to read input directory: {folder}")
+    if not os.access(input_folder, os.R_OK):
+        raise PermissionError(f"No permission to read input directory: {input_folder}")
     
     # Create output directory if it doesn't exist
     try:
@@ -179,7 +178,7 @@ def process_measurements(args, callback=None):
             return
             
         print(f"\nProcessing group {measurement_number} (starting from g{current_index})...")
-        groups, next_index = get_folder_groups(current_index, config)
+        groups, next_index = get_folder_groups(current_index, config, input_folder)
         
         if not groups:  # If no valid groups were found, break the loop
             raise ValueError(f"No valid groups found starting from g{current_index}")
@@ -195,7 +194,7 @@ def process_measurements(args, callback=None):
                 if callback and not callback():  # Check if we should stop
                     return
                     
-                folder_path = os.path.join(folder, folder_name)
+                folder_path = os.path.join(input_folder, folder_name)
                 if not os.path.exists(folder_path):
                     raise FileNotFoundError(f"Folder not found: {folder_path}")
                     
@@ -238,5 +237,4 @@ def process_measurements(args, callback=None):
 
 if __name__ == "__main__":
     args = parse_arguments()
-    folder = args.input
     process_measurements(args)
