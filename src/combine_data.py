@@ -3,6 +3,7 @@ import os
 import argparse
 import numpy as np
 from scipy import ndimage
+import json
 
 
 def parse_arguments():
@@ -66,6 +67,12 @@ def parse_arguments():
         type=float,
         default=50.0,
         help="Minimum intensity threshold for cosmic ray detection (default: 100.0)",
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default='[{"num_images": 2, "name": "center"}, {"num_images": 2, "name": "side"}]',
+        help='JSON string defining the measurement configuration. Each group should have "num_images" and "name". Default: [{"num_images": 2, "name": "center"}, {"num_images": 2, "name": "side"}]',
     )
     return parser.parse_args()
 
@@ -179,51 +186,71 @@ def combine_data(folder_name):
     return img
 
 
-config = [
-    {"num_images": 2, "name": "center"},
-    {"num_images": 2, "name": "side"},
-]
-
-
-def get_folder_groups(start_idx):
+def get_folder_groups(start_idx, config):
     """Group folders based on config and available folders, starting from start_idx."""
     groups = []
     current_index = start_idx
-
+    
+    print(f"  Checking folders starting from g{current_index}")
+    
     for group_config in config:
         group_folders = []
+        print(f"    Looking for {group_config['num_images']} images for group '{group_config['name']}'")
+        
         for _ in range(group_config["num_images"]):
             folder_name = f"g{current_index}"
-            if os.path.exists(folder + "/" + folder_name):
+            folder_path = os.path.join(folder, folder_name)
+            print(f"      Checking folder: {folder_path}")
+            
+            if os.path.exists(folder_path):
+                print(f"      Found folder: {folder_name}")
                 group_folders.append(folder_name)
-                current_index += 1
+            else:
+                print(f"      Folder not found: {folder_name}")
+            
+            current_index += 1
+        
         if group_folders:
             groups.append({"name": group_config["name"], "folders": group_folders})
-
+            print(f"    Added group '{group_config['name']}' with {len(group_folders)} folders")
+        else:
+            print(f"    No folders found for group '{group_config['name']}'")
+    
     return groups, current_index
 
 
 def process_measurements(args):
     """Process all measurements and combine data according to groups."""
+    global folder  # Make folder accessible to get_folder_groups
+    folder = args.input
+    
     # Create output directory if it doesn't exist
     os.makedirs(args.output, exist_ok=True)
-
+    
+    # Parse the configuration
+    try:
+        config = json.loads(args.config)
+    except json.JSONDecodeError as e:
+        print(f"Error parsing configuration JSON: {e}")
+        return
+    
     current_index = args.start
     measurement_number = 1
-
+    
     while current_index <= args.end:
         print(
             f"\nProcessing group {measurement_number} (starting from g{current_index})..."
         )
-        groups, next_index = get_folder_groups(current_index)
-
+        groups, next_index = get_folder_groups(current_index, config)
+        
         if not groups:  # If no valid groups were found, break the loop
+            print(f"No valid groups found starting from g{current_index}, stopping.")
             break
-
+            
         for group in groups:
             print(f"  Processing {group['name']} measurements...")
             combined_data = None
-
+            
             for folder_name in group["folders"]:
                 print(f"    Combining data from {folder_name}")
                 if combined_data is None:
@@ -231,12 +258,12 @@ def process_measurements(args):
                 else:
                     new_data = combine_data(folder + "/" + folder_name)
                     combined_data.data += new_data.data
-
+            
             # Save the combined data to the output folder
             output_filename = f"{args.output}/{args.prefix}_{group['name']}_{str(measurement_number).zfill(4)}.tif"
             combined_data.write(output_filename)
             print(f"    Saved combined data to {output_filename}")
-
+        
         current_index = next_index
         measurement_number += 1
 
