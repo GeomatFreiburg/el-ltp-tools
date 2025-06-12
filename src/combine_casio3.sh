@@ -36,7 +36,6 @@ python "$SCRIPT_DIR/combine_data.py" \
     --output "$OUTPUT_DIR" \
     --start 2 \
     --end 97 \
-    --base-filename "CaSiO3_" \
     --prefix "CaSiO3_2" \
     --cosmic-sigma "$COSMIC_SIGMA" \
     --cosmic-window "$COSMIC_WINDOW" \

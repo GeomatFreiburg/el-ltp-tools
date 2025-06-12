@@ -114,9 +114,6 @@ class MainWindow(QMainWindow):
         file_group = QGroupBox("File Settings")
         file_layout = QFormLayout()
         
-        self.base_filename = QLineEdit("CaSiO3_")
-        file_layout.addRow("Base Filename:", self.base_filename)
-        
         self.prefix = QLineEdit("CaSiO3_2")
         file_layout.addRow("Output Prefix:", self.prefix)
         
@@ -352,7 +349,6 @@ class MainWindow(QMainWindow):
         args.output = self.output_dir.text()
         args.start = self.start_idx.value()
         args.end = self.end_idx.value()
-        args.base_filename = self.base_filename.text()
         args.prefix = self.prefix.text()
         args.cosmic_sigma = self.cosmic_sigma.value()
         args.cosmic_window = self.cosmic_window.value()

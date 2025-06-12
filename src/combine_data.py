@@ -31,13 +31,6 @@ def parse_arguments():
         "--end", "-e", type=int, default=97, help="Ending folder index (default: 97)"
     )
     parser.add_argument(
-        "--base-filename",
-        "-b",
-        type=str,
-        default="CaSiO3_",
-        help="Base filename for the measurements (default: CaSiO3_)",
-    )
-    parser.add_argument(
         "--prefix",
         "-p",
         type=str,
@@ -77,11 +70,11 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def get_filenames(base_filename):
-    filenames = []
-    for i in range(1, 5):
-        filenames.append(base_filename + str(i).zfill(5) + ".tif")
-    return filenames
+def get_filenames(folder_path):
+    """Get all .tif and .tiff files in the specified folder."""
+    return [f for f in os.listdir(folder_path) 
+            if os.path.isfile(os.path.join(folder_path, f)) 
+            and f.lower().endswith(('.tif', '.tiff'))]
 
 
 def detect_cosmic_rays(data, sigma, window_size, min_intensity):
@@ -158,9 +151,14 @@ def apply_threshold(data, sigma, window_size, iterations, min_intensity):
     return data
 
 
-def combine_data(folder_name, base_filename, cosmic_sigma, cosmic_window, cosmic_iterations, cosmic_min):
-    filenames = get_filenames(base_filename)
-    img = fabio.open(folder_name + "/" + filenames[0])
+def combine_data(folder_name, cosmic_sigma, cosmic_window, cosmic_iterations, cosmic_min):
+    filenames = get_filenames(folder_name)
+    if not filenames:
+        raise FileNotFoundError(f"No files found in {folder_name}")
+        
+    # Get the first file to initialize the combined image
+    first_file = os.path.join(folder_name, filenames[0])
+    img = fabio.open(first_file)
     # Convert to float immediately after loading
     img.data = img.data.astype(np.float64)
     img.data = apply_threshold(
@@ -171,8 +169,10 @@ def combine_data(folder_name, base_filename, cosmic_sigma, cosmic_window, cosmic
         cosmic_min,
     )
     
+    # Process remaining files
     for filename in filenames[1:]:
-        img_new = fabio.open(folder_name + "/" + filename)
+        file_path = os.path.join(folder_name, filename)
+        img_new = fabio.open(file_path)
         # Convert to float immediately after loading
         img_new.data = img_new.data.astype(np.float64)
         img_new.data = apply_threshold(
@@ -277,7 +277,6 @@ def process_measurements(args, callback=None):
                     if combined_data is None:
                         combined_data = combine_data(
                             folder_path,
-                            args.base_filename,
                             args.cosmic_sigma,
                             args.cosmic_window,
                             args.cosmic_iterations,
@@ -286,7 +285,6 @@ def process_measurements(args, callback=None):
                     else:
                         new_data = combine_data(
                             folder_path,
-                            args.base_filename,
                             args.cosmic_sigma,
                             args.cosmic_window,
                             args.cosmic_iterations,
