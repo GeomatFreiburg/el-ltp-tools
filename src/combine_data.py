@@ -153,7 +153,7 @@ def apply_threshold(data, sigma, window_size, iterations, min_intensity):
             cosmic_counts.append(np.sum(cosmic_mask))
 
         # Print all counts in one line
-        print(f"    Found cosmic rays: {', '.join(map(str, cosmic_counts))}")
+        print(f"        Found cosmic rays: {', '.join(map(str, cosmic_counts))}")
 
     return data
 
@@ -219,64 +219,93 @@ def get_folder_groups(start_idx, config):
     return groups, current_index
 
 
-def process_measurements(args):
+def process_measurements(args, callback=None):
     """Process all measurements and combine data according to groups."""
     global folder  # Make folder accessible to get_folder_groups
     folder = args.input
     
+    # Check if input directory exists
+    if not os.path.exists(folder):
+        raise FileNotFoundError(f"Input directory not found: {folder}")
+    
+    # Check if input directory is readable
+    if not os.access(folder, os.R_OK):
+        raise PermissionError(f"No permission to read input directory: {folder}")
+    
     # Create output directory if it doesn't exist
-    os.makedirs(args.output, exist_ok=True)
+    try:
+        os.makedirs(args.output, exist_ok=True)
+    except PermissionError:
+        raise PermissionError(f"No permission to create output directory: {args.output}")
     
     # Parse the configuration
     try:
         config = json.loads(args.config)
     except json.JSONDecodeError as e:
-        print(f"Error parsing configuration JSON: {e}")
-        return
+        raise ValueError(f"Error parsing configuration JSON: {e}")
     
     current_index = args.start
     measurement_number = 1
     
     while current_index <= args.end:
-        print(
-            f"\nProcessing group {measurement_number} (starting from g{current_index})..."
-        )
+        if callback and not callback():  # Check if we should stop
+            return
+            
+        print(f"\nProcessing group {measurement_number} (starting from g{current_index})...")
         groups, next_index = get_folder_groups(current_index, config)
         
         if not groups:  # If no valid groups were found, break the loop
-            print(f"No valid groups found starting from g{current_index}, stopping.")
-            break
+            raise ValueError(f"No valid groups found starting from g{current_index}")
             
         for group in groups:
+            if callback and not callback():  # Check if we should stop
+                return
+                
             print(f"  Processing {group['name']} measurements...")
             combined_data = None
             
             for folder_name in group["folders"]:
+                if callback and not callback():  # Check if we should stop
+                    return
+                    
+                folder_path = os.path.join(folder, folder_name)
+                if not os.path.exists(folder_path):
+                    raise FileNotFoundError(f"Folder not found: {folder_path}")
+                    
                 print(f"    Combining data from {folder_name}")
-                if combined_data is None:
-                    combined_data = combine_data(
-                        folder + "/" + folder_name,
-                        args.base_filename,
-                        args.cosmic_sigma,
-                        args.cosmic_window,
-                        args.cosmic_iterations,
-                        args.cosmic_min
-                    )
-                else:
-                    new_data = combine_data(
-                        folder + "/" + folder_name,
-                        args.base_filename,
-                        args.cosmic_sigma,
-                        args.cosmic_window,
-                        args.cosmic_iterations,
-                        args.cosmic_min
-                    )
-                    combined_data.data += new_data.data
+                try:
+                    if combined_data is None:
+                        combined_data = combine_data(
+                            folder_path,
+                            args.base_filename,
+                            args.cosmic_sigma,
+                            args.cosmic_window,
+                            args.cosmic_iterations,
+                            args.cosmic_min
+                        )
+                    else:
+                        new_data = combine_data(
+                            folder_path,
+                            args.base_filename,
+                            args.cosmic_sigma,
+                            args.cosmic_window,
+                            args.cosmic_iterations,
+                            args.cosmic_min
+                        )
+                        combined_data.data += new_data.data
+                except FileNotFoundError as e:
+                    raise FileNotFoundError(f"File not found in {folder_path}: {str(e)}")
+                except Exception as e:
+                    raise RuntimeError(f"Error processing {folder_path}: {str(e)}")
             
-            # Save the combined data to the output folder
-            output_filename = f"{args.output}/{args.prefix}_{group['name']}_{str(measurement_number).zfill(4)}.tif"
-            combined_data.write(output_filename)
-            print(f"    Saved combined data to {output_filename}")
+            if combined_data is not None:
+                # Save the combined data to the output folder
+                output_filename = f"{args.output}/{args.prefix}_{group['name']}_{str(measurement_number).zfill(4)}.tif"
+                try:
+                    combined_data.write(output_filename)
+                    print(f"    Saved combined data to {output_filename}")
+                except Exception as e:
+                    raise RuntimeError(f"Error saving output file {output_filename}: {str(e)}")
         
         current_index = next_index
         measurement_number += 1

@@ -7,35 +7,60 @@ from PyQt6.QtWidgets import (
     QFileDialog, QTextEdit, QGroupBox, QFormLayout, QTableWidget,
     QTableWidgetItem, QHeaderView
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QObject
 import combine_data
+from datetime import datetime
 
 class ConversionWorker(QThread):
     """Worker thread for running the conversion process."""
     progress = pyqtSignal(str)
     finished = pyqtSignal()
+    error = pyqtSignal(str)
 
     def __init__(self, args):
         super().__init__()
         self.args = args
+        self._is_running = True
+        self._original_print = print
+
+    def stop(self):
+        self._is_running = False
+
+    def should_continue(self):
+        return self._is_running
 
     def run(self):
         # Override print to capture output
         def custom_print(*args, **kwargs):
+            if not self._is_running:
+                return
             self.progress.emit(" ".join(map(str, args)))
         
-        # Store original print function
-        original_print = print
-        # Replace print with our custom version
+        # Store original print function and replace it
         import builtins
         builtins.print = custom_print
 
         try:
-            combine_data.process_measurements(self.args)
+            # Check if we should stop before starting
+            if not self._is_running:
+                return
+
+            combine_data.process_measurements(self.args, callback=self.should_continue)
+            
+            # Only emit finished if we completed normally (not stopped)
+            if self._is_running:
+                self.finished.emit()
+
+        except FileNotFoundError as e:
+            self.error.emit(f"Error: File or directory not found - {str(e)}")
+        except PermissionError as e:
+            self.error.emit(f"Error: Permission denied - {str(e)}")
+        except Exception as e:
+            if self._is_running:  # Only emit error if we're not stopping
+                self.error.emit(f"Error: An unexpected error occurred - {str(e)}")
         finally:
             # Restore original print function
-            builtins.print = original_print
-            self.finished.emit()
+            builtins.print = self._original_print
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -255,7 +280,11 @@ class MainWindow(QMainWindow):
             line_edit.setText(directory)
 
     def log(self, message):
-        self.log_output.append(message)
+        """Add a message to the log output."""
+        if message.startswith("Error:"):
+            self.log_output.append(f'<span style="color: red;">{message}</span>')
+        else:
+            self.log_output.append(message)
 
     def add_config_row(self):
         current_row = self.config_table.rowCount()
@@ -281,11 +310,11 @@ class MainWindow(QMainWindow):
                 num_images = int(self.config_table.item(row, 0).text())
                 name = self.config_table.item(row, 1).text()
                 if not name:
-                    self.log(f"Error: Name is required for row {row + 1}")
+                    self.log("Error: Name is required for row {row + 1}")
                     return
                 config.append({"num_images": num_images, "name": name})
             except ValueError:
-                self.log(f"Error: Invalid number of images in row {row + 1}")
+                self.log("Error: Invalid number of images in row {row + 1}")
                 return
 
         # Create arguments object
@@ -304,27 +333,55 @@ class MainWindow(QMainWindow):
         args.cosmic_min = self.cosmic_min.value()
         args.config = json.dumps(config)
 
+        # Clean up any existing worker
+        if self.worker is not None:
+            self.worker.stop()
+            self.worker = None
+
         # Disable controls
         self.start_button.setEnabled(False)
         self.stop_button.setEnabled(True)
 
+        # Add separator to log
+        self.log_output.append("=" * 40)
+        self.log_output.append('<span style="color: #CCCCCC; font-weight: bold;">▶ Starting new conversion process</span>')
+        self.log_output.append(f'<span style="color: gray;">{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</span>')
+        self.log_output.append("=" * 40)
+        self.log_output.append("")
+
         # Start conversion
         self.worker = ConversionWorker(args)
         self.worker.progress.connect(self.log)
+        self.worker.error.connect(self.handle_error)
         self.worker.finished.connect(self.conversion_finished)
         self.worker.start()
 
+    def handle_error(self, error_message):
+        """Handle error messages from the worker thread."""
+        self.log(error_message)
+        self.stop_conversion()
+
     def stop_conversion(self):
-        if self.worker and self.worker.isRunning():
-            self.worker.terminate()
-            self.worker.wait()
-            self.log("Conversion stopped by user")
-            self.conversion_finished()
+        if self.worker is not None:
+            self.worker.stop()
+            self.log_output.append("")  # Add empty line before stop message
+            self.log_output.append("=" * 40)
+            self.log_output.append('<span style="color: red; font-weight: bold;">■ Conversion stopped by user</span>')
+            self.log_output.append(f'<span style="color: gray;">{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</span>')
+            self.log_output.append("=" * 40)
+            self.log_output.append("")  # Add empty line after stop message
+            self.start_button.setEnabled(True)
+            self.stop_button.setEnabled(False)
 
     def conversion_finished(self):
         self.start_button.setEnabled(True)
         self.stop_button.setEnabled(False)
-        self.log("Conversion finished")
+        self.log_output.append("")  # Add empty line before completion message
+        self.log_output.append("=" * 40)
+        self.log_output.append('<span style="color: green; font-weight: bold;">✓ Conversion completed successfully</span>')
+        self.log_output.append(f'<span style="color: gray;">{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</span>')
+        self.log_output.append("=" * 40)
+        self.log_output.append("")  # Add empty line after completion message
 
 def main():
     app = QApplication(sys.argv)
