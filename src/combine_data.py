@@ -4,7 +4,7 @@ import argparse
 import numpy as np
 from scipy import ndimage
 import json
-from cosmic import detect_cosmic_rays, apply_threshold
+from cosmic import detect_cosmic_rays, remove_cosmic_rays
 
 
 def parse_arguments():
@@ -88,7 +88,7 @@ def combine_data(folder_name, cosmic_sigma, cosmic_window, cosmic_iterations, co
     img = fabio.open(first_file)
     # Convert to float immediately after loading
     img.data = img.data.astype(np.float64)
-    img.data = apply_threshold(
+    img.data = remove_cosmic_rays(
         img.data,
         cosmic_sigma,
         cosmic_window,
@@ -102,7 +102,7 @@ def combine_data(folder_name, cosmic_sigma, cosmic_window, cosmic_iterations, co
         img_new = fabio.open(file_path)
         # Convert to float immediately after loading
         img_new.data = img_new.data.astype(np.float64)
-        img_new.data = apply_threshold(
+        img_new.data = remove_cosmic_rays(
             img_new.data,
             cosmic_sigma,
             cosmic_window,

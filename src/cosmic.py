@@ -3,7 +3,31 @@ from scipy import ndimage
 
 
 def detect_cosmic_rays(data, sigma, window_size, min_intensity):
-    """Detect cosmic rays by comparing pixel values to local statistics."""
+    """Detect cosmic rays in image data by comparing pixel values to local statistics.
+
+    This function identifies cosmic rays by looking for pixels that are significantly
+    brighter than their local neighborhood. It uses a combination of statistical
+    analysis (z-scores) and intensity thresholds to identify potential cosmic ray hits.
+
+    Parameters
+    ----------
+    data : numpy.ndarray
+        Input image data array. Should be a 2D array of pixel values.
+    sigma : float
+        Number of standard deviations above the local mean to consider a pixel
+        as a potential cosmic ray. Higher values are more conservative.
+    window_size : int
+        Size of the local neighborhood window used to calculate statistics.
+        Should be an odd number to have a well-defined center pixel.
+    min_intensity : float
+        Minimum pixel intensity threshold. Only pixels above this value will be
+        considered as potential cosmic rays.
+
+    Returns
+    -------
+    numpy.ndarray
+        Boolean mask where True indicates pixels identified as cosmic rays.
+    """
     # Create a mask for positive values
     positive_mask = data > 0
 
@@ -50,11 +74,37 @@ def detect_cosmic_rays(data, sigma, window_size, min_intensity):
     return combined_mask
 
 
-def apply_threshold(data, sigma, window_size, iterations, min_intensity):
-    """Apply cosmic ray detection and set detected pixels to NaN."""
+def remove_cosmic_rays(image, sigma, window_size, iterations, min_intensity):
+    """Apply cosmic ray detection and removal through multiple iterations.
+
+    This function iteratively detects and removes cosmic rays from the input data.
+    It uses the detect_cosmic_rays function in a loop, replacing detected cosmic
+    ray pixels with NaN values. The process is repeated multiple times to catch
+    cosmic rays that might be revealed after removing the most obvious ones.
+
+    Parameters
+    ----------
+    image : numpy.ndarray
+        Input image data array to be processed.
+    sigma : float or None
+        Number of standard deviations above the local mean to consider a pixel
+        as a cosmic ray. If None, no cosmic ray detection is performed.
+    window_size : int
+        Size of the local neighborhood window for statistics calculation.
+    iterations : int
+        Number of times to repeat the cosmic ray detection process.
+    min_intensity : float
+        Minimum pixel intensity threshold for cosmic ray detection. Values below this 
+        threshold are not considered as cosmic rays.
+
+    Returns
+    -------
+    numpy.ndarray
+        Processed data array with cosmic ray pixels replaced by NaN values.
+    """
     if sigma is not None:
         # Convert to float before any operations
-        data = data.astype(np.float64)
+        image = image.astype(np.float64)
 
         # Store counts for each iteration
         cosmic_counts = []
@@ -62,10 +112,10 @@ def apply_threshold(data, sigma, window_size, iterations, min_intensity):
         # Iterate multiple times to catch all cosmic rays
         for i in range(iterations):
             # Detect cosmic rays
-            cosmic_mask = detect_cosmic_rays(data, sigma, window_size, min_intensity)
+            cosmic_mask = detect_cosmic_rays(image, sigma, window_size, min_intensity)
 
             # Set cosmic ray pixels to NaN
-            data[cosmic_mask] = np.nan
+            image[cosmic_mask] = np.nan
 
             # Store the count
             cosmic_counts.append(np.sum(cosmic_mask))
@@ -73,4 +123,4 @@ def apply_threshold(data, sigma, window_size, iterations, min_intensity):
         # Print all counts in one line
         print(f"        Found cosmic rays: {', '.join(map(str, cosmic_counts))}")
 
-    return data 
+    return image
