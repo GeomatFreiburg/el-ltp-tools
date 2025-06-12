@@ -298,6 +298,80 @@ class MainWindow(QMainWindow):
         # Initialize worker
         self.worker = None
 
+        # Load saved state
+        self.load_state()
+
+    def get_state_file_path(self):
+        """Get the path to the state file."""
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        return os.path.join(script_dir, "combined_data_gui_state.json")
+
+    def save_state(self):
+        """Save the current state of the GUI to a file."""
+        state = {
+            "input_dir": self.input_dir.text(),
+            "output_dir": self.output_dir.text(),
+            "prefix": self.prefix.text(),
+            "start_idx": self.start_idx.value(),
+            "end_idx": self.end_idx.value(),
+            "cosmic_sigma": self.cosmic_sigma.value(),
+            "cosmic_window": self.cosmic_window.value(),
+            "cosmic_iterations": self.cosmic_iterations.value(),
+            "cosmic_min": self.cosmic_min.value(),
+            "config_table": []
+        }
+
+        # Save configuration table
+        for row in range(self.config_table.rowCount()):
+            num_images = self.config_table.item(row, 0).text()
+            name = self.config_table.item(row, 1).text()
+            state["config_table"].append({
+                "num_images": num_images,
+                "name": name
+            })
+
+        try:
+            with open(self.get_state_file_path(), 'w') as f:
+                json.dump(state, f, indent=2)
+        except Exception as e:
+            self.log(f"Error saving state: {str(e)}")
+
+    def load_state(self):
+        """Load the saved state of the GUI from a file."""
+        try:
+            with open(self.get_state_file_path(), 'r') as f:
+                state = json.load(f)
+
+            # Load basic settings
+            self.input_dir.setText(state.get("input_dir", self.input_dir.text()))
+            self.output_dir.setText(state.get("output_dir", self.output_dir.text()))
+            self.prefix.setText(state.get("prefix", self.prefix.text()))
+            self.start_idx.setValue(state.get("start_idx", self.start_idx.value()))
+            self.end_idx.setValue(state.get("end_idx", self.end_idx.value()))
+            self.cosmic_sigma.setValue(state.get("cosmic_sigma", self.cosmic_sigma.value()))
+            self.cosmic_window.setValue(state.get("cosmic_window", self.cosmic_window.value()))
+            self.cosmic_iterations.setValue(state.get("cosmic_iterations", self.cosmic_iterations.value()))
+            self.cosmic_min.setValue(state.get("cosmic_min", self.cosmic_min.value()))
+
+            # Load configuration table
+            config_table = state.get("config_table", [])
+            if config_table:
+                self.config_table.setRowCount(len(config_table))
+                for row, config in enumerate(config_table):
+                    self.config_table.setItem(row, 0, QTableWidgetItem(str(config["num_images"])))
+                    self.config_table.setItem(row, 1, QTableWidgetItem(config["name"]))
+
+        except FileNotFoundError:
+            # No saved state, use defaults
+            pass
+        except Exception as e:
+            self.log(f"Error loading state: {str(e)}")
+
+    def closeEvent(self, event):
+        """Handle window close event."""
+        self.save_state()
+        super().closeEvent(event)
+
     def browse_directory(self, line_edit):
         directory = QFileDialog.getExistingDirectory(self, "Select Directory")
         if directory:
