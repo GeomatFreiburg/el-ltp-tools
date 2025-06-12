@@ -4,7 +4,8 @@ import json
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QSpinBox, QDoubleSpinBox,
-    QFileDialog, QTextEdit, QGroupBox, QFormLayout
+    QFileDialog, QTextEdit, QGroupBox, QFormLayout, QTableWidget,
+    QTableWidgetItem, QHeaderView
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 import combine_data
@@ -54,7 +55,12 @@ class MainWindow(QMainWindow):
         # Create main widget and layout
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
-        layout = QVBoxLayout(main_widget)
+        main_layout = QHBoxLayout(main_widget)  # Changed to horizontal layout
+
+        # Left side container for all settings
+        left_widget = QWidget()
+        left_layout = QVBoxLayout(left_widget)
+        left_layout.setContentsMargins(0, 0, 0, 0)
 
         # Input/Output section
         io_group = QGroupBox("Input/Output Settings")
@@ -77,7 +83,7 @@ class MainWindow(QMainWindow):
         io_layout.addRow("Output Directory:", output_layout)
         
         io_group.setLayout(io_layout)
-        layout.addWidget(io_group)
+        left_layout.addWidget(io_group)
 
         # File settings section
         file_group = QGroupBox("File Settings")
@@ -100,7 +106,7 @@ class MainWindow(QMainWindow):
         file_layout.addRow("End Index:", self.end_idx)
         
         file_group.setLayout(file_layout)
-        layout.addWidget(file_group)
+        left_layout.addWidget(file_group)
 
         # Cosmic ray detection section
         cosmic_group = QGroupBox("Cosmic Ray Detection")
@@ -130,31 +136,97 @@ class MainWindow(QMainWindow):
         cosmic_layout.addRow("Minimum Intensity:", self.cosmic_min)
         
         cosmic_group.setLayout(cosmic_layout)
-        layout.addWidget(cosmic_group)
+        left_layout.addWidget(cosmic_group)
 
         # Configuration section
         config_group = QGroupBox("Measurement Configuration")
         config_layout = QVBoxLayout()
         
-        self.config_edit = QTextEdit()
-        self.config_edit.setPlaceholderText(
-            'Enter JSON configuration, e.g.:\n'
-            '[\n'
-            '  {"num_images": 2, "name": "center"},\n'
-            '  {"num_images": 2, "name": "side"}\n'
-            ']'
-        )
-        # Set default configuration
-        default_config = [
-            {"num_images": 2, "name": "center"},
-            {"num_images": 2, "name": "side"}
-        ]
-        self.config_edit.setText(json.dumps(default_config, indent=2))
-        self.config_edit.setMaximumHeight(100)
-        config_layout.addWidget(self.config_edit)
+        # Create table widget
+        self.config_table = QTableWidget()
+        self.config_table.setColumnCount(2)
+        self.config_table.setHorizontalHeaderLabels(["Number of Images", "Name"])
+        self.config_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.config_table.setMinimumHeight(200)  # Set minimum height for the table
+        
+        # Add default rows
+        self.config_table.setRowCount(2)
+        for i in range(2):
+            num_images_item = QTableWidgetItem("2")
+            name_item = QTableWidgetItem("center" if i == 0 else "side")
+            self.config_table.setItem(i, 0, num_images_item)
+            self.config_table.setItem(i, 1, name_item)
+        
+        # Add/Remove row buttons
+        button_layout = QHBoxLayout()
+        add_row_btn = QPushButton("Add Row")
+        remove_row_btn = QPushButton("Remove Row")
+        add_row_btn.clicked.connect(self.add_config_row)
+        remove_row_btn.clicked.connect(self.remove_config_row)
+        button_layout.addWidget(add_row_btn)
+        button_layout.addWidget(remove_row_btn)
+        
+        config_layout.addWidget(self.config_table)
+        config_layout.addLayout(button_layout)
         
         config_group.setLayout(config_layout)
-        layout.addWidget(config_group)
+        left_layout.addWidget(config_group)
+
+        # Add left widget to main layout
+        main_layout.addWidget(left_widget, stretch=1)  # Changed from 2 to 1
+
+        # Right side container for log and buttons
+        right_widget = QWidget()
+        right_layout = QVBoxLayout(right_widget)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Control buttons
+        button_layout = QHBoxLayout()
+        
+        self.start_button = QPushButton("Start Conversion")
+        self.start_button.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                padding: 15px;
+                font-size: 14px;
+                font-weight: bold;
+                min-height: 50px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+            QPushButton:disabled {
+                background-color: #cccccc;
+            }
+        """)
+        self.start_button.clicked.connect(self.start_conversion)
+        button_layout.addWidget(self.start_button)
+        
+        self.stop_button = QPushButton("Stop")
+        self.stop_button.setStyleSheet("""
+            QPushButton {
+                background-color: #f44336;
+                color: white;
+                border: none;
+                padding: 15px;
+                font-size: 14px;
+                font-weight: bold;
+                min-height: 50px;
+            }
+            QPushButton:hover {
+                background-color: #da190b;
+            }
+            QPushButton:disabled {
+                background-color: #cccccc;
+            }
+        """)
+        self.stop_button.clicked.connect(self.stop_conversion)
+        self.stop_button.setEnabled(False)
+        button_layout.addWidget(self.stop_button)
+        
+        right_layout.addLayout(button_layout)
 
         # Output log
         log_group = QGroupBox("Output Log")
@@ -165,21 +237,10 @@ class MainWindow(QMainWindow):
         log_layout.addWidget(self.log_output)
         
         log_group.setLayout(log_layout)
-        layout.addWidget(log_group)
+        right_layout.addWidget(log_group)
 
-        # Control buttons
-        button_layout = QHBoxLayout()
-        
-        self.start_button = QPushButton("Start Conversion")
-        self.start_button.clicked.connect(self.start_conversion)
-        button_layout.addWidget(self.start_button)
-        
-        self.stop_button = QPushButton("Stop")
-        self.stop_button.clicked.connect(self.stop_conversion)
-        self.stop_button.setEnabled(False)
-        button_layout.addWidget(self.stop_button)
-        
-        layout.addLayout(button_layout)
+        # Add right widget to main layout
+        main_layout.addWidget(right_widget, stretch=1)  # Changed from 1 to 1
 
         # Connect browse buttons
         input_browse.clicked.connect(lambda: self.browse_directory(self.input_dir))
@@ -196,17 +257,36 @@ class MainWindow(QMainWindow):
     def log(self, message):
         self.log_output.append(message)
 
+    def add_config_row(self):
+        current_row = self.config_table.rowCount()
+        self.config_table.insertRow(current_row)
+        self.config_table.setItem(current_row, 0, QTableWidgetItem("2"))
+        self.config_table.setItem(current_row, 1, QTableWidgetItem(""))
+
+    def remove_config_row(self):
+        current_row = self.config_table.currentRow()
+        if current_row >= 0:
+            self.config_table.removeRow(current_row)
+
     def start_conversion(self):
         # Validate inputs
         if not self.input_dir.text() or not self.output_dir.text():
             self.log("Error: Please select input and output directories")
             return
 
-        try:
-            config = json.loads(self.config_edit.toPlainText())
-        except json.JSONDecodeError as e:
-            self.log(f"Error: Invalid JSON configuration: {e}")
-            return
+        # Get configuration from table
+        config = []
+        for row in range(self.config_table.rowCount()):
+            try:
+                num_images = int(self.config_table.item(row, 0).text())
+                name = self.config_table.item(row, 1).text()
+                if not name:
+                    self.log(f"Error: Name is required for row {row + 1}")
+                    return
+                config.append({"num_images": num_images, "name": name})
+            except ValueError:
+                self.log(f"Error: Invalid number of images in row {row + 1}")
+                return
 
         # Create arguments object
         class Args:
