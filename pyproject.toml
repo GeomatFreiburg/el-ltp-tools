@@ -19,6 +19,7 @@ dependencies = [
 [tool.poetry.scripts]
 el-ltp-combine-images-gui = "el_ltp_tools.image_combine.gui:main"
 el-ltp-combine-images = "el_ltp_tools.image_combine.script:main"
+el-ltp-integrate-multi = "el_ltp_tools.diffraction.script:main"
 
 [tool.poetry]
 packages = [
