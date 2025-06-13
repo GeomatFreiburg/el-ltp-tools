@@ -115,5 +115,6 @@ def integrate_multi(
             comments="",
         )
         print(f"Saved integrated pattern to: {output_filename}")
+        print()  # Add blank line after each save message
     
     return integrated_patterns 

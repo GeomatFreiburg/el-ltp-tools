@@ -459,6 +459,9 @@ class MainWindow(QMainWindow):
             self.log_output.append(f'<span style="color: red;">{message}</span>')
         else:
             self.log_output.append(message)
+            # Add a blank line after "saved integrated pattern" messages
+            if "saved integrated pattern" in message:
+                self.log_output.append("")
 
     def handle_cell_changed(self, row, column):
         """Handle cell changes in the configuration table."""
