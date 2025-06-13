@@ -17,7 +17,8 @@ dependencies = [
 ]
 
 [tool.poetry.scripts]
-combine-gui = "el_ltp_tools.combine.combine_gui:main"
+el-ltp-combine-images-gui = "el_ltp_tools.image_combine.gui:main"
+el-ltp-combine-images = "el_ltp_tools.image_combine.script:main"
 
 [tool.poetry]
 packages = [

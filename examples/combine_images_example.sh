@@ -2,7 +2,7 @@
 
 # Get the directory where the script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-PROJECT_ROOT="$( cd "$SCRIPT_DIR/../.." && pwd )"
+PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 
 # Set input and output directories using absolute paths
 INPUT_DIR="$PROJECT_ROOT/Data/CaSiO3_2"
@@ -30,8 +30,8 @@ echo "Measurement configuration: $CONFIG"
 # Create output directory if it doesn't exist
 mkdir -p "$OUTPUT_DIR"
 
-# Run the Python script
-python "$SCRIPT_DIR/combine_data.py" \
+# Run the el-ltp-combine-images command
+el-ltp-combine-images \
     --input "$INPUT_DIR" \
     --output "$OUTPUT_DIR" \
     --start 2 \

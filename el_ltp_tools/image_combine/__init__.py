@@ -41,7 +41,6 @@ def combine_data(
     fabio.fabio.Image
         The combined image.
     """
-
     filenames = get_filenames(folder_name)
     if not filenames:
         raise FileNotFoundError(f"No files found in {folder_name}")
@@ -147,7 +146,7 @@ def process_measurements(args, callback=None):
         raise FileNotFoundError(f"Input directory not found: {input_folder}")
 
     # Check if input directory is readable
-    if not os.access(input_folder, os.R_OK):
+    if not os.access(input_folder, os.R.OK):
         raise PermissionError(f"No permission to read input directory: {input_folder}")
 
     # Create output directory if it doesn't exist
@@ -213,23 +212,17 @@ def process_measurements(args, callback=None):
                             args.cosmic_min,
                         )
                         combined_data.data += new_data.data
-                except FileNotFoundError as e:
-                    raise FileNotFoundError(
-                        f"File not found in {folder_path}: {str(e)}"
-                    )
+
                 except Exception as e:
-                    raise RuntimeError(f"Error processing {folder_path}: {str(e)}")
+                    print(f"    Error processing {folder_name}: {e}")
+                    continue
 
             if combined_data is not None:
-                # Save the combined data to the output folder
-                output_filename = f"{args.output}/{args.prefix}_{group['name']}_{str(measurement_number).zfill(4)}.tif"
-                try:
-                    combined_data.write(output_filename)
-                    print(f"    Saved combined data to {output_filename}")
-                except Exception as e:
-                    raise RuntimeError(
-                        f"Error saving output file {output_filename}: {str(e)}"
-                    )
+                output_filename = os.path.join(
+                    args.output, f"{args.prefix}_{group['name']}_{measurement_number:04d}.tif"
+                )
+                combined_data.write(output_filename)
+                print(f"    Saved combined data to {output_filename}")
 
         current_index = next_index
         measurement_number += 1

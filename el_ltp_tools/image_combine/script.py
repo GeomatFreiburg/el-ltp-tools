@@ -1,5 +1,5 @@
 import argparse
-from .process import process_measurements
+from . import process_measurements
 
 
 def parse_arguments():
