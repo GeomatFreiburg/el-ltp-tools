@@ -6,24 +6,30 @@ import numpy as np
 import glob
 import re
 import os
-
-# Configuration for each file type
-file_configs = {
-    "center": {
-        "keyword": "center",
-        "calibration": "../../Data/calibration/20241015_01_after_collision/ceo2_x668y-400_20241015_pily0_00002.poni",
-        "mask": "../../Data/masks/CaSiO3_2/base_CaSiO3_2_center.mask",
-    },
-    "side": {
-        "keyword": "side",
-        "calibration": "../../Data/calibration/20241015_01_after_collision/ceo2_x668y-400_20241015_pily5_00002.poni",
-        "mask": "../../Data/masks/CaSiO3_2/base_CaSiO3_2_side.mask",
-    },
-}
+from typing import TypedDict, Dict
 
 
-def get_sorted_files(base_path, keyword):
-    """Find and sort files based on keyword and their index number."""
+class DetectorConfig(TypedDict):
+    """Configuration for a single detector position.
+    
+    Attributes:
+        calibration: Path to the .poni calibration file for this detector position
+        mask: Path to the mask file (.mask) for this detector position
+    """
+    calibration: str
+    mask: str
+
+
+def get_sorted_files(base_path: str, keyword: str) -> list[str]:
+    """Find and sort files based on keyword and their index number.
+    
+    Args:
+        base_path: Directory to search for files
+        keyword: Keyword to match in filenames (e.g., 'center', 'side')
+        
+    Returns:
+        List of sorted file paths matching the pattern
+    """
     pattern = f"{base_path}/*{keyword}*.tif"
     files = glob.glob(pattern)
 
@@ -35,70 +41,111 @@ def get_sorted_files(base_path, keyword):
     return sorted(files, key=get_index)
 
 
-def integrate_file_pair(center_file, side_file, mg, mask_data):
-    """Integrate a single pair of files."""
-    # Load data
-    img_data = [
-        fabio.open(img_file).data[::-1] for img_file in [center_file, side_file]
-    ]
-
-    # Integrate using the provided MultiGeometry
-    q, I = mg.integrate1d(img_data, npt=500, lst_mask=mask_data, polarization_factor=1)
-
-    return q, I
-
-
-def main():
-    base_path = "../../Data/BX90_13_empty_2_combined"
-    output_dir = "../../Data/BX90_13_empty_2_integrated"
-    # base_path = "../../Data/CaSiO3_2_combined"
-    # output_dir = "../../Data/CaSiO3_2_integrated"
+def integrate_multi(
+    input_dir: str, output_dir: str, config: Dict[str, DetectorConfig]
+) -> list[tuple[np.ndarray, np.ndarray]]:
+    """Process and integrate data from multiple detector positions.
     
+    This function takes data from multiple detector positions (e.g., center, side),
+    each with its own calibration and mask, and integrates them together using
+    pyFAI's MultiGeometry integration.
+    
+    Args:
+        input_dir: Directory containing the input .tif files
+        output_dir: Directory where integrated .xy files will be saved
+        config: Dictionary mapping detector position names to their configurations.
+               Each configuration must specify calibration and mask file paths.
+               Example:
+               {
+                   "center": {
+                       "calibration": "path/to/center.poni",
+                       "mask": "path/to/center.mask"
+                   },
+                   "side": {
+                       "calibration": "path/to/side.poni",
+                       "mask": "path/to/side.mask"
+                   }
+               }
+               
+    Returns:
+        List of tuples containing (q, I) arrays for each integrated pattern
+    """
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
     
-    # Load mask data once
-    mask_data = [
-        np.array(Image.open(file_configs["center"]["mask"])),
-        np.array(Image.open(file_configs["side"]["mask"])),
-    ]
+    # Load mask data for all configurations
+    mask_data = [np.array(Image.open(cfg["mask"])) for cfg in config.values()]
     
     # Create MultiGeometry once
-    poni_filenames = [
-        file_configs["center"]["calibration"],
-        file_configs["side"]["calibration"],
-    ]
+    poni_filenames = [cfg["calibration"] for cfg in config.values()]
     mg = MultiGeometry(poni_filenames, unit="q_A^-1")
     
-    # Get sorted files for each type
-    center_files = get_sorted_files(base_path, file_configs["center"]["keyword"])
-    side_files = get_sorted_files(base_path, file_configs["side"]["keyword"])
+    # Get sorted files for each configuration
+    config_files = {
+        config_name: get_sorted_files(input_dir, config_name)
+        for config_name in config.keys()
+    }
     
-    # Ensure we have matching pairs
-    if len(center_files) != len(side_files):
-        raise ValueError("Number of center and side files don't match!")
+    # Ensure all configurations have the same number of files
+    num_files = len(next(iter(config_files.values())))
+    if not all(len(files) == num_files for files in config_files.values()):
+        raise ValueError("Number of files don't match across all configurations!")
     
-    plt.figure(figsize=(10, 5))
-    # Process each pair
-    for center_file, side_file in zip(center_files, side_files):
-        print(
-            f"Processing pair: {os.path.basename(center_file)} and {os.path.basename(side_file)}"
+    integrated_patterns = []
+    # Process each set of files
+    for i in range(num_files):
+        # Get the current file from each configuration
+        current_files = [files[i] for files in config_files.values()]
+        print(f"Processing files: {[os.path.basename(f) for f in current_files]}")
+        
+        # Load data from all files
+        img_data = [fabio.open(img_file).data[::-1] for img_file in current_files]
+        
+        # Integrate using the provided MultiGeometry
+        q, I = mg.integrate1d(
+            img_data, npt=500, lst_mask=mask_data, polarization_factor=1
         )
-        q, I = integrate_file_pair(center_file, side_file, mg, mask_data)
-        plt.plot(q, I)
+        integrated_patterns.append((q, I))
         
         # Save the integrated pattern
-        output_filename = os.path.join(
-            output_dir,
-            f"{os.path.basename(center_file).replace('.tif', '.xy').replace('center', 'integrated')}"
+        output_filename = os.path.join(output_dir, f"integrated_{i:04d}.xy")
+        np.savetxt(
+            output_filename,
+            np.column_stack((q, I)),
+            header="q(A^-1) I(a.u.)",
+            comments="",
         )
-        np.savetxt(output_filename, np.column_stack((q, I)), header="q(A^-1) I(a.u.)", comments="")
         print(f"Saved integrated pattern to: {output_filename}")
     
-    plt.xlabel("q (Å⁻¹)")
-    plt.ylabel("Intensity (a.u.)")
-    plt.show()
+    return integrated_patterns
 
 
 if __name__ == "__main__":
-    main()
+    # Example configuration
+    file_configs: Dict[str, DetectorConfig] = {
+        "center": {
+            "calibration": "../../Data/calibration/20241015_01_after_collision/ceo2_x668y-400_20241015_pily0_00002.poni",
+            "mask": "../../Data/masks/CaSiO3_2/base_CaSiO3_2_center.mask",
+        },
+        "side": {
+            "calibration": "../../Data/calibration/20241015_01_after_collision/ceo2_x668y-400_20241015_pily5_00002.poni",
+            "mask": "../../Data/masks/CaSiO3_2/base_CaSiO3_2_side.mask",
+        },
+    }
+    
+    # Example paths
+    input_dir = "../../Data/BX90_13_empty_2_combined"
+    output_dir = "../../Data/BX90_13_empty_2_integrated"
+    # input_dir = "../../Data/CaSiO3_2_combined"
+    # output_dir = "../../Data/CaSiO3_2_integrated"
+    
+    # Process the data
+    integrated_patterns = integrate_multi(input_dir, output_dir, file_configs)
+    
+    # Plot the results
+    plt.figure(figsize=(10, 5))
+    for q, I in integrated_patterns:
+        plt.plot(q, I)
+    plt.xlabel("q (Å⁻¹)")
+    plt.ylabel("Intensity (a.u.)")
+    plt.show()
