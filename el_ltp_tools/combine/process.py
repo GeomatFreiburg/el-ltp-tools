@@ -1,73 +1,8 @@
-import fabio
 import os
-import argparse
-import numpy as np
 import json
-from cosmic import remove_cosmic_rays
-
-
-def parse_arguments():
-    parser = argparse.ArgumentParser(
-        description="Combine measurement data from multiple folders."
-    )
-    parser.add_argument(
-        "--input",
-        "-i",
-        type=str,
-        required=True,
-        help="Input folder containing the measurement data",
-    )
-    parser.add_argument(
-        "--output",
-        "-o",
-        type=str,
-        required=True,
-        help="Output folder for combined data",
-    )
-    parser.add_argument(
-        "--start", "-s", type=int, default=2, help="Starting folder index (default: 2)"
-    )
-    parser.add_argument(
-        "--end", "-e", type=int, default=97, help="Ending folder index (default: 97)"
-    )
-    parser.add_argument(
-        "--prefix",
-        "-p",
-        type=str,
-        default="CaSiO3_2",
-        help="Prefix for output files (default: CaSiO3_2)",
-    )
-    parser.add_argument(
-        "--cosmic-sigma",
-        type=float,
-        default=6.0,
-        help="Number of standard deviations above local mean to consider a pixel as cosmic ray (default: 5.0)",
-    )
-    parser.add_argument(
-        "--cosmic-window",
-        type=int,
-        default=10,
-        help="Size of the window for local statistics (default: 5)",
-    )
-    parser.add_argument(
-        "--cosmic-iterations",
-        type=int,
-        default=3,
-        help="Number of iterations for cosmic ray detection (default: 3)",
-    )
-    parser.add_argument(
-        "--cosmic-min",
-        type=float,
-        default=50.0,
-        help="Minimum intensity threshold for cosmic ray detection (default: 100.0)",
-    )
-    parser.add_argument(
-        "--config",
-        type=str,
-        default='[{"num_images": 2, "name": "center"}, {"num_images": 2, "name": "side"}]',
-        help='JSON string defining the measurement configuration. Each group should have "num_images" and "name". Default: [{"num_images": 2, "name": "center"}, {"num_images": 2, "name": "side"}]',
-    )
-    return parser.parse_args()
+import numpy as np
+import fabio
+from ..util.cosmic import remove_cosmic_rays
 
 
 def get_filenames(folder_path):
@@ -83,6 +18,30 @@ def get_filenames(folder_path):
 def combine_data(
     folder_name, cosmic_sigma, cosmic_window, cosmic_iterations, cosmic_min
 ):
+    """
+    Combines all images (with ".tif" or ".tiff" extension) in the given folder.
+    The images are combined by adding them together.
+    Cosmic rays are removed from the images using the remove_cosmic_rays function.
+
+    Parameters
+    ----------
+    folder_name : str
+        The path to the folder containing the images to combine.
+    cosmic_sigma : float
+        The sigma value for the cosmic ray detection.
+    cosmic_window : int
+        The window size for the cosmic ray detection.
+    cosmic_iterations : int
+        The number of iterations for the cosmic ray detection.
+    cosmic_min : float
+        The minimum intensity threshold for the cosmic ray detection.
+
+    Returns
+    -------
+    fabio.fabio.Image
+        The combined image.
+    """
+
     filenames = get_filenames(folder_name)
     if not filenames:
         raise FileNotFoundError(f"No files found in {folder_name}")
@@ -118,7 +77,24 @@ def combine_data(
 
 
 def get_folder_groups(start_idx, config, input_folder):
-    """Group folders based on config and available folders, starting from start_idx."""
+    """Group folders based on config and available folders, starting from start_idx.
+
+    Parameters
+    ----------
+    start_idx : int
+        The starting index for the folder groups.
+    config : list
+        The configuration for the folder groups.
+    input_folder : str
+        The path to the input folder.
+
+    Returns
+    -------
+    list
+        A list of dictionaries, each containing the name of the group and the folders in the group.
+    current_index : int
+        The index of the last folder that was checked.
+    """
     groups = []
     current_index = start_idx
 
@@ -155,7 +131,15 @@ def get_folder_groups(start_idx, config, input_folder):
 
 
 def process_measurements(args, callback=None):
-    """Process all measurements and combine data according to groups."""
+    """Process all measurements and combine data according to groups.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        The arguments for the script.
+    callback : function, optional
+        A callback function to check if the process should stop.
+    """
     input_folder = args.input
 
     # Check if input directory exists
@@ -249,8 +233,3 @@ def process_measurements(args, callback=None):
 
         current_index = next_index
         measurement_number += 1
-
-
-if __name__ == "__main__":
-    args = parse_arguments()
-    process_measurements(args)

@@ -1,5 +1,5 @@
 [project]
-name = "2024-10_desy_ltp-el_analysis"
+name = "el-ltp-tools"
 version = "0.1.0"
 description = ""
 authors = [
@@ -8,9 +8,19 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.12, <3.14"
 dependencies = [
-    "dioptas (>=0.7.1,<0.8.0)"
+    "fabio (>=2024.9.0,<2025.0.0)",
+    "numpy (>=2.3.0,<3.0.0)",
+    "scipy (>=1.15.3,<2.0.0)",
+    "pyqt6 (>=6.9.1,<7.0.0)"
 ]
 
+[tool.poetry.scripts]
+combine-gui = "el_ltp_tools.combine.combine_gui:main"
+
+[tool.poetry]
+packages = [
+    { include = "el_ltp_tools" }
+]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

@@ -2,17 +2,31 @@ import sys
 import os
 import json
 from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QLineEdit, QPushButton, QSpinBox, QDoubleSpinBox,
-    QFileDialog, QTextEdit, QGroupBox, QFormLayout, QTableWidget,
-    QTableWidgetItem, QHeaderView
+    QApplication,
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLineEdit,
+    QPushButton,
+    QSpinBox,
+    QDoubleSpinBox,
+    QFileDialog,
+    QTextEdit,
+    QGroupBox,
+    QFormLayout,
+    QTableWidget,
+    QTableWidgetItem,
+    QHeaderView,
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QObject
-import combine_data
+from PyQt6.QtCore import QThread, pyqtSignal
+from .combine_script import process_measurements
 from datetime import datetime
+
 
 class ConversionWorker(QThread):
     """Worker thread for running the conversion process."""
+
     progress = pyqtSignal(str)
     finished = pyqtSignal()
     error = pyqtSignal(str)
@@ -35,9 +49,10 @@ class ConversionWorker(QThread):
             if not self._is_running:
                 return
             self.progress.emit(" ".join(map(str, args)))
-        
+
         # Store original print function and replace it
         import builtins
+
         builtins.print = custom_print
 
         try:
@@ -45,8 +60,8 @@ class ConversionWorker(QThread):
             if not self._is_running:
                 return
 
-            combine_data.process_measurements(self.args, callback=self.should_continue)
-            
+            process_measurements(self.args, callback=self.should_continue)
+
             # Only emit finished if we completed normally (not stopped)
             if self._is_running:
                 self.finished.emit()
@@ -62,6 +77,7 @@ class ConversionWorker(QThread):
             # Restore original print function
             builtins.print = self._original_print
 
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -72,7 +88,7 @@ class MainWindow(QMainWindow):
         # Get the directory where the script is located
         script_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.abspath(os.path.join(script_dir, "../.."))
-        
+
         # Set default paths
         default_input_dir = os.path.join(project_root, "Data/CaSiO3_2")
         default_output_dir = os.path.join(project_root, "Data/CaSiO3_2_combined")
@@ -90,7 +106,7 @@ class MainWindow(QMainWindow):
         # Input/Output section
         io_group = QGroupBox("Input/Output Settings")
         io_layout = QFormLayout()
-        
+
         # Input directory
         self.input_dir = QLineEdit(default_input_dir)
         input_browse = QPushButton("Browse...")
@@ -98,7 +114,7 @@ class MainWindow(QMainWindow):
         input_layout.addWidget(self.input_dir)
         input_layout.addWidget(input_browse)
         io_layout.addRow("Input Directory:", input_layout)
-        
+
         # Output directory
         self.output_dir = QLineEdit(default_output_dir)
         output_browse = QPushButton("Browse...")
@@ -106,71 +122,73 @@ class MainWindow(QMainWindow):
         output_layout.addWidget(self.output_dir)
         output_layout.addWidget(output_browse)
         io_layout.addRow("Output Directory:", output_layout)
-        
+
         io_group.setLayout(io_layout)
         left_layout.addWidget(io_group)
 
         # File settings section
         file_group = QGroupBox("File Settings")
         file_layout = QFormLayout()
-        
+
         self.prefix = QLineEdit("CaSiO3_2")
         file_layout.addRow("Output Prefix:", self.prefix)
-        
+
         self.start_idx = QSpinBox()
         self.start_idx.setRange(1, 999)
         self.start_idx.setValue(2)
         file_layout.addRow("Start Index:", self.start_idx)
-        
+
         self.end_idx = QSpinBox()
         self.end_idx.setRange(1, 999)
         self.end_idx.setValue(97)
         file_layout.addRow("End Index:", self.end_idx)
-        
+
         file_group.setLayout(file_layout)
         left_layout.addWidget(file_group)
 
         # Cosmic ray detection section
         cosmic_group = QGroupBox("Cosmic Ray Detection")
         cosmic_layout = QFormLayout()
-        
+
         self.cosmic_sigma = QDoubleSpinBox()
         self.cosmic_sigma.setRange(1.0, 20.0)
         self.cosmic_sigma.setValue(6.0)
         self.cosmic_sigma.setSingleStep(0.5)
         cosmic_layout.addRow("Sigma:", self.cosmic_sigma)
-        
+
         self.cosmic_window = QSpinBox()
         self.cosmic_window.setRange(3, 21)
         self.cosmic_window.setValue(10)
         self.cosmic_window.setSingleStep(2)
         cosmic_layout.addRow("Window Size:", self.cosmic_window)
-        
+
         self.cosmic_iterations = QSpinBox()
         self.cosmic_iterations.setRange(1, 10)
         self.cosmic_iterations.setValue(3)
         cosmic_layout.addRow("Iterations:", self.cosmic_iterations)
-        
+
         self.cosmic_min = QDoubleSpinBox()
         self.cosmic_min.setRange(0.0, 1000.0)
         self.cosmic_min.setValue(50.0)
         self.cosmic_min.setSingleStep(10.0)
         cosmic_layout.addRow("Minimum Intensity:", self.cosmic_min)
-        
+
         cosmic_group.setLayout(cosmic_layout)
         left_layout.addWidget(cosmic_group)
 
         # Configuration section
         config_group = QGroupBox("Measurement Configuration")
         config_layout = QVBoxLayout()
-        
+
         # Create table widget
         self.config_table = QTableWidget()
         self.config_table.setColumnCount(2)
         self.config_table.setHorizontalHeaderLabels(["N Images", "Name"])
-        self.config_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.config_table.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeMode.Stretch
+        )
         self.config_table.setMinimumHeight(200)  # Set minimum height for the table
-        
+
         # Add default rows
         self.config_table.setRowCount(2)
         for i in range(2):
@@ -178,7 +196,7 @@ class MainWindow(QMainWindow):
             name_item = QTableWidgetItem("center" if i == 0 else "side")
             self.config_table.setItem(i, 0, num_images_item)
             self.config_table.setItem(i, 1, name_item)
-        
+
         # Add/Remove row buttons
         button_layout = QHBoxLayout()
         add_row_btn = QPushButton("Add Row")
@@ -187,10 +205,10 @@ class MainWindow(QMainWindow):
         remove_row_btn.clicked.connect(self.remove_config_row)
         button_layout.addWidget(add_row_btn)
         button_layout.addWidget(remove_row_btn)
-        
+
         config_layout.addWidget(self.config_table)
         config_layout.addLayout(button_layout)
-        
+
         config_group.setLayout(config_layout)
         left_layout.addWidget(config_group)
 
@@ -204,9 +222,10 @@ class MainWindow(QMainWindow):
 
         # Control buttons
         button_layout = QHBoxLayout()
-        
+
         self.start_button = QPushButton("Start Conversion")
-        self.start_button.setStyleSheet("""
+        self.start_button.setStyleSheet(
+            """
             QPushButton {
                 background-color: #4CAF50;
                 color: white;
@@ -222,12 +241,14 @@ class MainWindow(QMainWindow):
             QPushButton:disabled {
                 background-color: #cccccc;
             }
-        """)
+        """
+        )
         self.start_button.clicked.connect(self.start_conversion)
         button_layout.addWidget(self.start_button)
-        
+
         self.stop_button = QPushButton("Stop")
-        self.stop_button.setStyleSheet("""
+        self.stop_button.setStyleSheet(
+            """
             QPushButton {
                 background-color: #f44336;
                 color: white;
@@ -243,25 +264,27 @@ class MainWindow(QMainWindow):
             QPushButton:disabled {
                 background-color: #cccccc;
             }
-        """)
+        """
+        )
         self.stop_button.clicked.connect(self.stop_conversion)
         self.stop_button.setEnabled(False)
         button_layout.addWidget(self.stop_button)
-        
+
         right_layout.addLayout(button_layout)
 
         # Output log
         log_group = QGroupBox("Output Log")
         log_layout = QVBoxLayout()
-        
+
         self.log_output = QTextEdit()
         self.log_output.setReadOnly(True)
         log_layout.addWidget(self.log_output)
-        
+
         # Add clear button below log
         self.clear_button = QPushButton("🗑")  # Trash can icon
         self.clear_button.setToolTip("Clear log output")
-        self.clear_button.setStyleSheet("""
+        self.clear_button.setStyleSheet(
+            """
             QPushButton {
                 background-color: #666666;
                 color: white;
@@ -276,15 +299,16 @@ class MainWindow(QMainWindow):
             QPushButton:hover {
                 background-color: #555555;
             }
-        """)
+        """
+        )
         self.clear_button.clicked.connect(self.clear_log)
-        
+
         # Create a layout for the clear button to align it to the right
         clear_layout = QHBoxLayout()
         clear_layout.addStretch()  # Push button to the right
         clear_layout.addWidget(self.clear_button)
         log_layout.addLayout(clear_layout)
-        
+
         log_group.setLayout(log_layout)
         right_layout.addWidget(log_group)
 
@@ -318,20 +342,17 @@ class MainWindow(QMainWindow):
             "cosmic_window": self.cosmic_window.value(),
             "cosmic_iterations": self.cosmic_iterations.value(),
             "cosmic_min": self.cosmic_min.value(),
-            "config_table": []
+            "config_table": [],
         }
 
         # Save configuration table
         for row in range(self.config_table.rowCount()):
             num_images = self.config_table.item(row, 0).text()
             name = self.config_table.item(row, 1).text()
-            state["config_table"].append({
-                "num_images": num_images,
-                "name": name
-            })
+            state["config_table"].append({"num_images": num_images, "name": name})
 
         try:
-            with open(self.get_state_file_path(), 'w') as f:
+            with open(self.get_state_file_path(), "w") as f:
                 json.dump(state, f, indent=2)
         except Exception as e:
             self.log(f"Error saving state: {str(e)}")
@@ -339,7 +360,7 @@ class MainWindow(QMainWindow):
     def load_state(self):
         """Load the saved state of the GUI from a file."""
         try:
-            with open(self.get_state_file_path(), 'r') as f:
+            with open(self.get_state_file_path(), "r") as f:
                 state = json.load(f)
 
             # Load basic settings
@@ -348,9 +369,15 @@ class MainWindow(QMainWindow):
             self.prefix.setText(state.get("prefix", self.prefix.text()))
             self.start_idx.setValue(state.get("start_idx", self.start_idx.value()))
             self.end_idx.setValue(state.get("end_idx", self.end_idx.value()))
-            self.cosmic_sigma.setValue(state.get("cosmic_sigma", self.cosmic_sigma.value()))
-            self.cosmic_window.setValue(state.get("cosmic_window", self.cosmic_window.value()))
-            self.cosmic_iterations.setValue(state.get("cosmic_iterations", self.cosmic_iterations.value()))
+            self.cosmic_sigma.setValue(
+                state.get("cosmic_sigma", self.cosmic_sigma.value())
+            )
+            self.cosmic_window.setValue(
+                state.get("cosmic_window", self.cosmic_window.value())
+            )
+            self.cosmic_iterations.setValue(
+                state.get("cosmic_iterations", self.cosmic_iterations.value())
+            )
             self.cosmic_min.setValue(state.get("cosmic_min", self.cosmic_min.value()))
 
             # Load configuration table
@@ -358,7 +385,9 @@ class MainWindow(QMainWindow):
             if config_table:
                 self.config_table.setRowCount(len(config_table))
                 for row, config in enumerate(config_table):
-                    self.config_table.setItem(row, 0, QTableWidgetItem(str(config["num_images"])))
+                    self.config_table.setItem(
+                        row, 0, QTableWidgetItem(str(config["num_images"]))
+                    )
                     self.config_table.setItem(row, 1, QTableWidgetItem(config["name"]))
 
         except FileNotFoundError:
@@ -418,6 +447,7 @@ class MainWindow(QMainWindow):
         # Create arguments object
         class Args:
             pass
+
         args = Args()
         args.input = self.input_dir.text()
         args.output = self.output_dir.text()
@@ -441,8 +471,12 @@ class MainWindow(QMainWindow):
 
         # Add separator to log
         self.log_output.append("=" * 40)
-        self.log_output.append('<span style="color: #CCCCCC; font-weight: bold;">▶ Starting new conversion process</span>')
-        self.log_output.append(f'<span style="color: gray;">{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</span>')
+        self.log_output.append(
+            '<span style="color: #CCCCCC; font-weight: bold;">▶ Starting new conversion process</span>'
+        )
+        self.log_output.append(
+            f'<span style="color: gray;">{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</span>'
+        )
         self.log_output.append("=" * 40)
         self.log_output.append("")
 
@@ -463,8 +497,12 @@ class MainWindow(QMainWindow):
             self.worker.stop()
             self.log_output.append("")  # Add empty line before stop message
             self.log_output.append("=" * 40)
-            self.log_output.append('<span style="color: red; font-weight: bold;">■ Conversion stopped by user</span>')
-            self.log_output.append(f'<span style="color: gray;">{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</span>')
+            self.log_output.append(
+                '<span style="color: red; font-weight: bold;">■ Conversion stopped by user</span>'
+            )
+            self.log_output.append(
+                f'<span style="color: gray;">{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</span>'
+            )
             self.log_output.append("=" * 40)
             self.log_output.append("")  # Add empty line after stop message
             self.start_button.setEnabled(True)
@@ -475,8 +513,12 @@ class MainWindow(QMainWindow):
         self.stop_button.setEnabled(False)
         self.log_output.append("")  # Add empty line before completion message
         self.log_output.append("=" * 40)
-        self.log_output.append('<span style="color: green; font-weight: bold;">✓ Conversion completed successfully</span>')
-        self.log_output.append(f'<span style="color: gray;">{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</span>')
+        self.log_output.append(
+            '<span style="color: green; font-weight: bold;">✓ Conversion completed successfully</span>'
+        )
+        self.log_output.append(
+            f'<span style="color: gray;">{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</span>'
+        )
         self.log_output.append("=" * 40)
         self.log_output.append("")  # Add empty line after completion message
 
@@ -484,11 +526,13 @@ class MainWindow(QMainWindow):
         """Clear the log output."""
         self.log_output.clear()
 
+
 def main():
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
 
+
 if __name__ == "__main__":
-    main() 
+    main()
