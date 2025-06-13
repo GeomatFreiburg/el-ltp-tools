@@ -97,6 +97,10 @@ def integrate_multi(
         current_files = [files[i] for files in config_files.values()]
         print(f"Processing files: {[os.path.basename(f) for f in current_files]}")
         
+        # Extract base name from first file (removing configuration name and extension)
+        first_file = os.path.basename(current_files[0])
+        base_name = re.sub(r'_[^_]+_\d+\.tif$', '', first_file)
+        
         # Load data from all files
         img_data = [fabio.open(img_file).data[::-1] for img_file in current_files]
         
@@ -106,8 +110,8 @@ def integrate_multi(
         )
         integrated_patterns.append((q, I))
         
-        # Save the integrated pattern
-        output_filename = os.path.join(output_dir, f"integrated_{i:04d}.xy")
+        # Save the integrated pattern with the base name (index starting from 1)
+        output_filename = os.path.join(output_dir, f"{base_name}_{i+1:04d}.xy")
         np.savetxt(
             output_filename,
             np.column_stack((q, I)),

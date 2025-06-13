@@ -1,6 +1,8 @@
 import sys
 import os
 import json
+import numpy as np
+import matplotlib.pyplot as plt
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -63,7 +65,7 @@ class IntegrationWorker(QThread):
     """Worker thread for running the integration process."""
 
     progress = pyqtSignal(str)
-    finished = pyqtSignal()
+    finished = pyqtSignal(list)  # Changed to emit the integrated patterns
     error = pyqtSignal(str)
 
     def __init__(self, input_dir, output_dir, file_configs):
@@ -89,7 +91,6 @@ class IntegrationWorker(QThread):
 
         # Store original print function and replace it
         import builtins
-
         builtins.print = custom_print
 
         try:
@@ -107,7 +108,7 @@ class IntegrationWorker(QThread):
 
             # Only emit finished if we completed normally (not stopped)
             if self._is_running:
-                self.finished.emit()
+                self.finished.emit(integrated_patterns)
 
         except FileNotFoundError as e:
             self.error.emit(f"Error: File or directory not found - {str(e)}")
@@ -635,7 +636,7 @@ class MainWindow(QMainWindow):
             self.start_button.setEnabled(True)
             self.stop_button.setEnabled(False)
 
-    def integration_finished(self):
+    def integration_finished(self, integrated_patterns):
         self.start_button.setEnabled(True)
         self.stop_button.setEnabled(False)
         self.log_output.append("")
@@ -648,6 +649,32 @@ class MainWindow(QMainWindow):
         )
         self.log_output.append("=" * 40)
         self.log_output.append("")
+
+        # Plot the integrated patterns
+        try:
+            plt.figure(figsize=(12, 8))
+            
+            # Calculate the offset for vertical spacing
+            # Get the maximum intensity across all patterns
+            max_intensity = max(max(I) for _, I in integrated_patterns)
+            min_intensity = min(min(I) for _, I in integrated_patterns)
+            spacing_offset = (max_intensity - min_intensity) * 0.05  # 5% of data range as spacing
+            
+            for i, (q, I) in enumerate(integrated_patterns):
+                # Add an offset to the intensity that increases with each pattern
+                offset_I = I + (i * spacing_offset)
+                plt.plot(q, offset_I, label=f"Pattern {i+1:04d}")
+
+            plt.xlabel("q (Å⁻¹)")
+            plt.ylabel("Intensity (a.u.)")
+            plt.title("Integrated Diffraction Patterns")
+            plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+            plt.subplots_adjust(right=0.85)  # Make room for legend
+            plt.tight_layout()
+            plt.show()
+
+        except Exception as e:
+            self.log(f"Error plotting patterns: {str(e)}")
 
     def clear_log(self):
         """Clear the log output."""
