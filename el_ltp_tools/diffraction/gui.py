@@ -131,7 +131,7 @@ class IntegrationWorker(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Diffraction Data Integration")
+        self.setWindowTitle("EL-LTP Tools - Multi-Detector Integration")
         self.setMinimumWidth(800)
         self.setMinimumHeight(600)
 
@@ -674,7 +674,7 @@ class MainWindow(QMainWindow):
             # Create a new dialog window for the plot
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             plot_dialog = QDialog(self)
-            plot_dialog.setWindowTitle(f"Integrated Diffraction Patterns - {current_time}")
+            plot_dialog.setWindowTitle(f"EL-LTP Tools - Integrated Diffraction Patterns - {current_time}")
             plot_dialog.resize(1200, 800)
             plot_dialog.setWindowFlags(plot_dialog.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
             
