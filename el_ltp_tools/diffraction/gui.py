@@ -2,7 +2,12 @@ import sys
 import os
 import json
 import numpy as np
+import matplotlib
+matplotlib.use('Qt5Agg')  # Set the backend to Qt before importing pyplot
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+from matplotlib.figure import Figure
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -19,6 +24,7 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QLabel,
     QStyledItemDelegate,
+    QDialog,
 )
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PyQt6.QtGui import QPainter, QFontMetrics
@@ -665,7 +671,27 @@ class MainWindow(QMainWindow):
 
         # Plot the integrated patterns
         try:
-            plt.figure(figsize=(12, 8))
+            # Create a new dialog window for the plot
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            plot_dialog = QDialog(self)
+            plot_dialog.setWindowTitle(f"Integrated Diffraction Patterns - {current_time}")
+            plot_dialog.resize(1200, 800)
+            plot_dialog.setWindowFlags(plot_dialog.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
+            
+            # Create layout for the dialog
+            layout = QVBoxLayout(plot_dialog)
+            
+            # Create figure and canvas
+            fig = Figure(figsize=(12, 8))
+            canvas = FigureCanvas(fig)
+            
+            # Add navigation toolbar
+            toolbar = NavigationToolbar(canvas, plot_dialog)
+            layout.addWidget(toolbar)
+            layout.addWidget(canvas)
+            
+            # Create the plot
+            ax = fig.add_subplot(111)
             
             # Calculate the offset for vertical spacing
             # Get the maximum intensity across all patterns
@@ -676,15 +702,16 @@ class MainWindow(QMainWindow):
             for i, (q, I) in enumerate(integrated_patterns):
                 # Add an offset to the intensity that increases with each pattern
                 offset_I = I + (i * spacing_offset)
-                plt.plot(q, offset_I, label=f"Pattern {i+1:04d}")
+                ax.plot(q, offset_I, label=f"Pattern {i+1:04d}")
 
-            plt.xlabel("q (Å⁻¹)")
-            plt.ylabel("Intensity (a.u.)")
-            plt.title("Integrated Diffraction Patterns")
-            plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-            plt.subplots_adjust(right=0.85)  # Make room for legend
-            plt.tight_layout()
-            plt.show()
+            ax.set_xlabel("q (Å⁻¹)")
+            ax.set_ylabel("Intensity (a.u.)")
+            ax.set_title("Integrated Diffraction Patterns")
+            ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+            fig.tight_layout()
+            
+            # Show the dialog non-modally
+            plot_dialog.show()
 
         except Exception as e:
             self.log(f"Error plotting patterns: {str(e)}")
