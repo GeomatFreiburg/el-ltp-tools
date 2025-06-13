@@ -85,6 +85,9 @@ class MainWindow(QMainWindow):
         self.setMinimumWidth(800)
         self.setMinimumHeight(600)
 
+        # Initialize last used directory
+        self.last_directory = os.path.expanduser("~")
+
         # Get the directory where the script is located
         script_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.abspath(os.path.join(script_dir, "../.."))
@@ -327,8 +330,14 @@ class MainWindow(QMainWindow):
 
     def get_state_file_path(self):
         """Get the path to the state file."""
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        return os.path.join(script_dir, "combined_data_gui_state.json")
+        # Get user's home directory
+        home_dir = os.path.expanduser("~")
+        config_dir = os.path.join(home_dir, ".el_ltp_tools")
+        
+        # Ensure config directory exists
+        os.makedirs(config_dir, exist_ok=True)
+        
+        return os.path.join(config_dir, "combined_data_gui_state.json")
 
     def save_state(self):
         """Save the current state of the GUI to a file."""
@@ -343,6 +352,7 @@ class MainWindow(QMainWindow):
             "cosmic_iterations": self.cosmic_iterations.value(),
             "cosmic_min": self.cosmic_min.value(),
             "config_table": [],
+            "last_directory": self.last_directory,  # Save last used directory
         }
 
         # Save configuration table
@@ -379,6 +389,10 @@ class MainWindow(QMainWindow):
                 state.get("cosmic_iterations", self.cosmic_iterations.value())
             )
             self.cosmic_min.setValue(state.get("cosmic_min", self.cosmic_min.value()))
+            
+            # Load last used directory, defaulting to the input directory if available
+            self.last_directory = state.get("last_directory", 
+                state.get("input_dir", os.path.expanduser("~")))
 
             # Load configuration table
             config_table = state.get("config_table", [])
@@ -402,9 +416,14 @@ class MainWindow(QMainWindow):
         super().closeEvent(event)
 
     def browse_directory(self, line_edit):
-        directory = QFileDialog.getExistingDirectory(self, "Select Directory")
+        directory = QFileDialog.getExistingDirectory(
+            self, 
+            "Select Directory",
+            self.last_directory
+        )
         if directory:
             line_edit.setText(directory)
+            self.last_directory = directory  # Update last used directory
 
     def log(self, message):
         """Add a message to the log output."""
