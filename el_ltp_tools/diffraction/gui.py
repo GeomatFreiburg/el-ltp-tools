@@ -157,6 +157,7 @@ class MainWindow(QMainWindow):
         input_label = QLabel("Input Directory:")
         self.input_dir = QLineEdit(default_input_dir)
         input_browse = QPushButton("Browse...")
+        input_browse.setToolTip("Select directory containing the input diffraction images")
         input_layout = QHBoxLayout()
         input_layout.addWidget(self.input_dir)
         input_layout.addWidget(input_browse)
@@ -167,6 +168,7 @@ class MainWindow(QMainWindow):
         output_label = QLabel("Output Directory:")
         self.output_dir = QLineEdit(default_output_dir)
         output_browse = QPushButton("Browse...")
+        output_browse.setToolTip("Select directory where integrated patterns will be saved")
         output_layout = QHBoxLayout()
         output_layout.addWidget(self.output_dir)
         output_layout.addWidget(output_browse)
@@ -230,6 +232,7 @@ class MainWindow(QMainWindow):
             cal_browse = QPushButton("...")
             cal_browse.setFixedWidth(45)
             cal_browse.setStyleSheet("padding: 0px; margin: 0px;")
+            cal_browse.setToolTip("Select calibration file (.poni) for this detector position")
             cal_browse.clicked.connect(
                 lambda checked, row=i: self.browse_file(row, "calibration")
             )
@@ -237,6 +240,7 @@ class MainWindow(QMainWindow):
             mask_browse = QPushButton("...")
             mask_browse.setFixedWidth(45)
             mask_browse.setStyleSheet("padding: 0px; margin: 0px;")
+            mask_browse.setToolTip("Select mask file (.mask) for this detector position")
             mask_browse.clicked.connect(
                 lambda checked, row=i: self.browse_file(row, "mask")
             )
@@ -359,8 +363,8 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(log_group)
 
         # Connect browse buttons
-        input_browse.clicked.connect(lambda: self.browse_directory(self.input_dir))
-        output_browse.clicked.connect(lambda: self.browse_directory(self.output_dir))
+        input_browse.clicked.connect(lambda: self.browse_directory(self.input_dir, "Select Input Directory"))
+        output_browse.clicked.connect(lambda: self.browse_directory(self.output_dir, "Select Output Directory"))
 
         # Initialize worker
         self.worker = None
@@ -446,9 +450,15 @@ class MainWindow(QMainWindow):
         self.save_state()
         super().closeEvent(event)
 
-    def browse_directory(self, line_edit):
+    def browse_directory(self, line_edit, title):
+        """Open file dialog to select a directory.
+        
+        Args:
+            line_edit: The QLineEdit widget to update with the selected directory
+            title: The window title for the file dialog
+        """
         directory = QFileDialog.getExistingDirectory(
-            self, "Select Directory", self.last_directory
+            self, title, self.last_directory
         )
         if directory:
             line_edit.setText(directory)
@@ -485,6 +495,7 @@ class MainWindow(QMainWindow):
         cal_browse = QPushButton("...")
         cal_browse.setFixedWidth(45)
         cal_browse.setStyleSheet("padding: 0px; margin: 0px;")
+        cal_browse.setToolTip("Select calibration file (.poni) for this detector position")
         cal_browse.clicked.connect(
             lambda checked, row=current_row: self.browse_file(row, "calibration")
         )
@@ -492,6 +503,7 @@ class MainWindow(QMainWindow):
         mask_browse = QPushButton("...")
         mask_browse.setFixedWidth(45)
         mask_browse.setStyleSheet("padding: 0px; margin: 0px;")
+        mask_browse.setToolTip("Select mask file (.mask) for this detector position")
         mask_browse.clicked.connect(
             lambda checked, row=current_row: self.browse_file(row, "mask")
         )
@@ -536,6 +548,7 @@ class MainWindow(QMainWindow):
         # Create and configure the file dialog
         dialog = QFileDialog(self)
         dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
+        dialog.setWindowTitle(f"Select {file_type} file")
         dialog.setNameFilter(file_filter)
         dialog.setDirectory(start_dir)
 
