@@ -25,7 +25,7 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y xvfb libxcb-xinerama0 libegl1 libgl1-mesa-glx libgl1-mesa-dri libglu1-mesa libxkbcommon-x11-0
+        sudo apt-get install -y xvfb libxcb-xinerama0 libegl1 libgl1 libglu1 libxkbcommon-x11-0
     
     - name: Start Xvfb
       run: |
