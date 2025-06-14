@@ -1,5 +1,6 @@
 import os
 import json
+import re
 
 import numpy as np
 from PIL import Image
@@ -8,13 +9,13 @@ import fabio
 from ..util.cosmic import detect_cosmic_rays
 
 
-def get_tiff_filenames(folder_path: str) -> list[str]:
-    """Get all .tif and .tiff files in the specified folder.
+def get_tiff_filenames(directory_path: str) -> list[str]:
+    """Get all .tif and .tiff files in the specified directory.
 
     Parameters
     ----------
-    folder_path : str
-        The path to the folder containing the images to combine.
+    directory_path : str
+        The path to the directory containing the images to combine.
 
     Returns
     -------
@@ -23,8 +24,8 @@ def get_tiff_filenames(folder_path: str) -> list[str]:
     """
     return [
         f
-        for f in os.listdir(folder_path)
-        if os.path.isfile(os.path.join(folder_path, f))
+        for f in os.listdir(directory_path)
+        if os.path.isfile(os.path.join(directory_path, f))
         and f.lower().endswith((".tif", ".tiff"))
     ]
 
@@ -37,7 +38,7 @@ def combine_images_in_directory(
     cosmic_min: float,
 ) -> np.ndarray:
     """
-    Combines all tiff/tif images in the given folder.
+    Combines all tiff/tif images in the given directory.
     The images are combined by adding them together.
     Cosmic rays are removed from the images using the detect_cosmic_rays function.
     For each image, pixels identified as cosmic rays are replaced with the average
@@ -45,8 +46,8 @@ def combine_images_in_directory(
 
     Parameters
     ----------
-    folder_name : str
-        The path to the folder containing the images to combine.
+    directory_path : str
+        The path to the directory containing the images to combine.
     cosmic_sigma : float
         The sigma value for the cosmic ray detection.
     cosmic_window : int
@@ -97,7 +98,7 @@ def combine_images_in_directory(
             cosmic_masks[i],
             np.nanmean(
                 [imgs_data_nan[j] for j in range(len(imgs_data)) if j != i], axis=0
-            ),
+            ) if len(imgs_data) > 1 else imgs_data[i],  # Use original value if only one image
             imgs_data[i],
         )
         for i in range(len(imgs_data))
@@ -106,58 +107,70 @@ def combine_images_in_directory(
     return np.sum(imgs_data, axis=0)
 
 
-def get_folder_groups(
-    start_idx: int, config: list, input_folder: str
+def get_directory_groups(
+    start_idx: int, config: list, input_directory: str, directory_pattern: str = r"g(\d+)"
 ) -> tuple[list, int]:
-    """Group folders based on config and available folders, starting from start_idx.
+    """Group directories based on config and available directories, starting from start_idx.
 
     Parameters
     ----------
     start_idx : int
-        The starting index for the folder groups.
+        The starting index for the directory groups.
     config : list
-        The configuration for the folder groups.
-    input_folder : str
-        The path to the input folder.
+        The configuration for the directory groups.
+    input_directory : str
+        The path to the input directory.
+    directory_pattern : str, optional
+        Regular expression pattern to match directory names. Must contain a capture group for the sequence number.
+        Default is r"g(\\d+)" which matches directories like "g1", "g2", etc.
+        Example for "project_1", "project_2": r"project_(\\d+)"
 
     Returns
     -------
     list
-        A list of dictionaries, each containing the name of the group and the folders in the group.
+        A list of dictionaries, each containing the name of the group and the directories in the group.
     current_index : int
-        The index of the last folder that was checked.
+        The index of the last directory that was checked.
     """
     groups = []
     current_index = start_idx
+    pattern = re.compile(directory_pattern)
 
-    print(f"  Checking folders starting from g{current_index}")
+    print(f"  Checking directories starting from index {current_index}")
 
     for group_config in config:
-        group_folders = []
+        group_directories = []
         print(
-            f"    Looking for {group_config['num_images']} images for group '{group_config['name']}'"
+            f"    Looking for {group_config['num_images']} directories for group '{group_config['name']}'"
         )
 
         for _ in range(group_config["num_images"]):
-            folder_name = f"g{current_index}"
-            folder_path = os.path.join(input_folder, folder_name)
-            print(f"      Checking folder: {folder_path}")
+            # Find all directories that match the pattern
+            matching_directories = []
+            for directory_name in os.listdir(input_directory):
+                match = pattern.match(directory_name)
+                if match:
+                    directory_num = int(match.group(1))
+                    if directory_num == current_index:
+                        matching_directories.append(directory_name)
 
-            if os.path.exists(folder_path):
-                print(f"      Found folder: {folder_name}")
-                group_folders.append(folder_name)
+            if matching_directories:
+                directory_name = matching_directories[0]  # Take the first matching directory
+                directory_path = os.path.join(input_directory, directory_name)
+                print(f"      Found directory: {directory_name}")
+                group_directories.append(directory_name)
             else:
-                print(f"      Folder not found: {folder_name}")
+                print(f"      No matching directory found for index {current_index}")
 
             current_index += 1
 
-        if group_folders:
-            groups.append({"name": group_config["name"], "folders": group_folders})
+        if group_directories:
+            groups.append({"name": group_config["name"], "directories": group_directories})
             print(
-                f"    Added group '{group_config['name']}' with {len(group_folders)} folders"
+                f"    Added group '{group_config['name']}' with {len(group_directories)} directories"
             )
         else:
-            print(f"    No folders found for group '{group_config['name']}'")
+            print(f"    No directories found for group '{group_config['name']}'")
 
     return groups, current_index
 
@@ -172,15 +185,15 @@ def process_measurements(args, callback=None) -> None:
     callback : function, optional
         A callback function to check if the process should stop.
     """
-    input_folder = args.input
+    input_directory = args.input
 
     # Check if input directory exists
-    if not os.path.exists(input_folder):
-        raise FileNotFoundError(f"Input directory not found: {input_folder}")
+    if not os.path.exists(input_directory):
+        raise FileNotFoundError(f"Input directory not found: {input_directory}")
 
     # Check if input directory is readable
-    if not os.access(input_folder, os.R_OK):
-        raise PermissionError(f"No permission to read input directory: {input_folder}")
+    if not os.access(input_directory, os.R_OK):
+        raise PermissionError(f"No permission to read input directory: {input_directory}")
 
     # Create output directory if it doesn't exist
     try:
@@ -204,12 +217,12 @@ def process_measurements(args, callback=None) -> None:
             return
 
         print(
-            f"\nProcessing group {measurement_number} (starting from g{current_index})..."
+            f"\nProcessing measurement {measurement_number} (starting from index {current_index})..."
         )
-        groups, next_index = get_folder_groups(current_index, config, input_folder)
+        groups, next_index = get_directory_groups(current_index, config, input_directory)
 
         if not groups:  # If no valid groups were found, break the loop
-            raise ValueError(f"No valid groups found starting from g{current_index}")
+            raise ValueError(f"No valid groups found starting from index {current_index}")
 
         for group in groups:
             if callback and not callback():  # Check if we should stop
@@ -218,19 +231,19 @@ def process_measurements(args, callback=None) -> None:
             print(f"  Processing {group['name']} measurements...")
             combined_data = None
 
-            for folder_name in group["folders"]:
+            for directory_name in group["directories"]:
                 if callback and not callback():  # Check if we should stop
                     return
 
-                folder_path = os.path.join(input_folder, folder_name)
-                if not os.path.exists(folder_path):
-                    raise FileNotFoundError(f"Folder not found: {folder_path}")
+                directory_path = os.path.join(input_directory, directory_name)
+                if not os.path.exists(directory_path):
+                    raise FileNotFoundError(f"Directory not found: {directory_path}")
 
-                print(f"    Combining data from {folder_name}")
+                print(f"    Combining data from {directory_name}")
                 try:
                     if combined_data is None:
                         combined_data = combine_images_in_directory(
-                            folder_path,
+                            directory_path,
                             args.cosmic_sigma,
                             args.cosmic_window,
                             args.cosmic_iterations,
@@ -238,7 +251,7 @@ def process_measurements(args, callback=None) -> None:
                         )
                     else:
                         new_data = combine_images_in_directory(
-                            folder_path,
+                            directory_path,
                             args.cosmic_sigma,
                             args.cosmic_window,
                             args.cosmic_iterations,
@@ -247,7 +260,7 @@ def process_measurements(args, callback=None) -> None:
                         combined_data += new_data
 
                 except Exception as e:
-                    print(f"    Error processing {folder_name}: {e}")
+                    print(f"    Error processing {directory_name}: {e}")
                     continue
 
             if combined_data is not None:
