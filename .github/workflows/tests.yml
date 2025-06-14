@@ -13,6 +13,9 @@ jobs:
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
 
+    env:
+      QT_QPA_PLATFORM: offscreen
+
     steps:
     - uses: actions/checkout@v4
     
@@ -25,12 +28,9 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y xvfb libxcb-xinerama0 libegl1 libgl1 libglu1 libxkbcommon-x11-0
-    
-    - name: Start Xvfb
-      run: |
-        Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
-        echo "DISPLAY=:99" >> $GITHUB_ENV
+        sudo apt-get install python3-opengl libgl1-mesa-dev libglib2.0-0 libxkbcommon-x11-dev libxcb-xinerama0  \
+          libxcb-keysyms1-dev libxcb-image0-dev libxcb-icccm4-dev libxcb-sync0-dev libxcb-xfixes0-dev \
+          libxcb-shape0-dev libxcb-randr0-dev libxcb-render-util0-dev libxcb-cursor0 libopengl0
     
     - name: Install Poetry
       uses: snok/install-poetry@v1
