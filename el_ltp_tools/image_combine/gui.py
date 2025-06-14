@@ -31,9 +31,19 @@ class ConversionWorker(QThread):
     finished = pyqtSignal()
     error = pyqtSignal(str)
 
-    def __init__(self, args):
+    def __init__(self, input_directory, output_directory, config, start_index, end_index,
+                 cosmic_sigma, cosmic_window, cosmic_iterations, cosmic_min, prefix):
         super().__init__()
-        self.args = args
+        self.input_directory = input_directory
+        self.output_directory = output_directory
+        self.config = config
+        self.start_index = start_index
+        self.end_index = end_index
+        self.cosmic_sigma = cosmic_sigma
+        self.cosmic_window = cosmic_window
+        self.cosmic_iterations = cosmic_iterations
+        self.cosmic_min = cosmic_min
+        self.prefix = prefix
         self._is_running = True
         self._original_print = print
 
@@ -60,7 +70,19 @@ class ConversionWorker(QThread):
             if not self._is_running:
                 return
 
-            process_measurements(self.args, callback=self.should_continue)
+            process_measurements(
+                input_directory=self.input_directory,
+                output_directory=self.output_directory,
+                config=self.config,
+                start_index=self.start_index,
+                end_index=self.end_index,
+                cosmic_sigma=self.cosmic_sigma,
+                cosmic_window=self.cosmic_window,
+                cosmic_iterations=self.cosmic_iterations,
+                cosmic_min=self.cosmic_min,
+                prefix=self.prefix,
+                callback=self.should_continue
+            )
 
             # Only emit finished if we completed normally (not stopped)
             if self._is_running:
@@ -186,7 +208,7 @@ class MainWindow(QMainWindow):
         # Create table widget
         self.config_table = QTableWidget()
         self.config_table.setColumnCount(2)
-        self.config_table.setHorizontalHeaderLabels(["N Images", "Name"])
+        self.config_table.setHorizontalHeaderLabels(["N Directories", "Name"])
         self.config_table.horizontalHeader().setSectionResizeMode(
             1, QHeaderView.ResizeMode.Stretch
         )
@@ -445,44 +467,39 @@ class MainWindow(QMainWindow):
 
     def start_conversion(self):
         # Validate inputs
-        if not self.input_dir.text() or not self.output_dir.text():
-            self.log("Error: Please select input and output directories")
+        if not self.input_dir.text():
+            self.handle_error("Please specify an input directory")
+            return
+        if not self.output_dir.text():
+            self.handle_error("Please specify an output directory")
+            return
+        if not self.prefix.text():
+            self.handle_error("Please specify a prefix")
             return
 
         # Get configuration from table
         config = []
         for row in range(self.config_table.rowCount()):
-            try:
-                num_images = int(self.config_table.item(row, 0).text())
-                name = self.config_table.item(row, 1).text()
-                if not name:
-                    self.log("Error: Name is required for row {row + 1}")
-                    return
-                config.append({"num_images": num_images, "name": name})
-            except ValueError:
-                self.log("Error: Invalid number of images in row {row + 1}")
+            num_images = self.config_table.item(row, 0).text()
+            name = self.config_table.item(row, 1).text()
+            if not num_images or not name:
+                self.handle_error("Please fill in all configuration fields")
                 return
+            config.append({"num_images": int(num_images), "name": name})
 
-        # Create arguments object
-        class Args:
-            pass
-
-        args = Args()
-        args.input = self.input_dir.text()
-        args.output = self.output_dir.text()
-        args.start = self.start_idx.value()
-        args.end = self.end_idx.value()
-        args.prefix = self.prefix.text()
-        args.cosmic_sigma = self.cosmic_sigma.value()
-        args.cosmic_window = self.cosmic_window.value()
-        args.cosmic_iterations = self.cosmic_iterations.value()
-        args.cosmic_min = self.cosmic_min.value()
-        args.config = json.dumps(config)
-
-        # Clean up any existing worker
-        if self.worker is not None:
-            self.worker.stop()
-            self.worker = None
+        # Create worker thread
+        self.worker = ConversionWorker(
+            input_directory=self.input_dir.text(),
+            output_directory=self.output_dir.text(),
+            config=json.dumps(config),
+            start_index=self.start_idx.value(),
+            end_index=self.end_idx.value(),
+            cosmic_sigma=self.cosmic_sigma.value(),
+            cosmic_window=self.cosmic_window.value(),
+            cosmic_iterations=self.cosmic_iterations.value(),
+            cosmic_min=self.cosmic_min.value(),
+            prefix=self.prefix.text()
+        )
 
         # Disable controls
         self.start_button.setEnabled(False)
@@ -500,7 +517,6 @@ class MainWindow(QMainWindow):
         self.log_output.append("")
 
         # Start conversion
-        self.worker = ConversionWorker(args)
         self.worker.progress.connect(self.log)
         self.worker.error.connect(self.handle_error)
         self.worker.finished.connect(self.conversion_finished)

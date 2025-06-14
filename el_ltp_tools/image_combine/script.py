@@ -167,7 +167,18 @@ def main():
     os.makedirs(args.output, exist_ok=True)
     
     # Process the measurements
-    process_measurements(args)
+    process_measurements(
+        input_directory=args.input,
+        output_directory=args.output,
+        config=args.config,
+        start_index=args.start,
+        end_index=args.end,
+        cosmic_sigma=args.cosmic_sigma,
+        cosmic_window=args.cosmic_window,
+        cosmic_iterations=args.cosmic_iterations,
+        cosmic_min=args.cosmic_min,
+        prefix=args.prefix
+    )
     
     print(f"Processing complete! Combined images have been saved to: {args.output}")
 

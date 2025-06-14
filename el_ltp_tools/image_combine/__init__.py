@@ -96,9 +96,13 @@ def combine_images_in_directory(
     imgs_data = [
         np.where(
             cosmic_masks[i],
-            np.nanmean(
-                [imgs_data_nan[j] for j in range(len(imgs_data)) if j != i], axis=0
-            ) if len(imgs_data) > 1 else imgs_data[i],  # Use original value if only one image
+            (
+                np.nanmean(
+                    [imgs_data_nan[j] for j in range(len(imgs_data)) if j != i], axis=0
+                )
+                if len(imgs_data) > 1
+                else imgs_data[i]
+            ),  # Use original value if only one image
             imgs_data[i],
         )
         for i in range(len(imgs_data))
@@ -108,7 +112,10 @@ def combine_images_in_directory(
 
 
 def get_directory_groups(
-    start_idx: int, config: list, input_directory: str, directory_pattern: str = r"g(\d+)"
+    start_idx: int,
+    config: list,
+    input_directory: str,
+    directory_pattern: str = r"g(\d+)",
 ) -> tuple[list, int]:
     """Group directories based on config and available directories, starting from start_idx.
 
@@ -155,7 +162,9 @@ def get_directory_groups(
                         matching_directories.append(directory_name)
 
             if matching_directories:
-                directory_name = matching_directories[0]  # Take the first matching directory
+                directory_name = matching_directories[
+                    0
+                ]  # Take the first matching directory
                 directory_path = os.path.join(input_directory, directory_name)
                 print(f"      Found directory: {directory_name}")
                 group_directories.append(directory_name)
@@ -165,7 +174,9 @@ def get_directory_groups(
             current_index += 1
 
         if group_directories:
-            groups.append({"name": group_config["name"], "directories": group_directories})
+            groups.append(
+                {"name": group_config["name"], "directories": group_directories}
+            )
             print(
                 f"    Added group '{group_config['name']}' with {len(group_directories)} directories"
             )
@@ -175,54 +186,90 @@ def get_directory_groups(
     return groups, current_index
 
 
-def process_measurements(args, callback=None) -> None:
+def process_measurements(
+    input_directory: str,
+    output_directory: str,
+    config: str,
+    start_index: int,
+    end_index: int,
+    cosmic_sigma: float,
+    cosmic_window: int,
+    cosmic_iterations: int,
+    cosmic_min: float,
+    prefix: str,
+    callback=None,
+) -> None:
     """Process all measurements and combine data according to groups.
 
     Parameters
     ----------
-    args : argparse.Namespace
-        The arguments for the script.
+    input_directory : str
+        Path to the directory containing the input measurement data.
+    output_directory : str
+        Path where the combined output files will be saved.
+    config : str
+        JSON string containing the configuration for directory groups.
+        Each group should have a 'name' and 'num_images' field.
+    start_index : int
+        The starting index for processing directories.
+    end_index : int
+        The ending index for processing directories.
+    cosmic_sigma : float
+        The sigma value for cosmic ray detection.
+    cosmic_window : int
+        The window size for cosmic ray detection.
+    cosmic_iterations : int
+        The number of iterations for cosmic ray detection.
+    cosmic_min : float
+        The minimum intensity threshold for cosmic ray detection.
+    prefix : str
+        Prefix to use for output filenames.
     callback : function, optional
         A callback function to check if the process should stop.
+        Should return True to continue processing, False to stop.
     """
-    input_directory = args.input
-
     # Check if input directory exists
     if not os.path.exists(input_directory):
         raise FileNotFoundError(f"Input directory not found: {input_directory}")
 
     # Check if input directory is readable
     if not os.access(input_directory, os.R_OK):
-        raise PermissionError(f"No permission to read input directory: {input_directory}")
+        raise PermissionError(
+            f"No permission to read input directory: {input_directory}"
+        )
 
     # Create output directory if it doesn't exist
     try:
-        os.makedirs(args.output, exist_ok=True)
+        os.makedirs(output_directory, exist_ok=True)
     except PermissionError:
         raise PermissionError(
-            f"No permission to create output directory: {args.output}"
+            f"No permission to create output directory: {output_directory}"
         )
 
     # Parse the configuration
     try:
-        config = json.loads(args.config)
+        config_data = json.loads(config)
     except json.JSONDecodeError as e:
         raise ValueError(f"Error parsing configuration JSON: {e}")
 
-    current_index = args.start
+    current_index = start_index
     measurement_number = 1
 
-    while current_index <= args.end:
+    while current_index <= end_index:
         if callback and not callback():  # Check if we should stop
             return
 
         print(
             f"\nProcessing measurement {measurement_number} (starting from index {current_index})..."
         )
-        groups, next_index = get_directory_groups(current_index, config, input_directory)
+        groups, next_index = get_directory_groups(
+            current_index, config_data, input_directory
+        )
 
         if not groups:  # If no valid groups were found, break the loop
-            raise ValueError(f"No valid groups found starting from index {current_index}")
+            raise ValueError(
+                f"No valid groups found starting from index {current_index}"
+            )
 
         for group in groups:
             if callback and not callback():  # Check if we should stop
@@ -244,18 +291,18 @@ def process_measurements(args, callback=None) -> None:
                     if combined_data is None:
                         combined_data = combine_images_in_directory(
                             directory_path,
-                            args.cosmic_sigma,
-                            args.cosmic_window,
-                            args.cosmic_iterations,
-                            args.cosmic_min,
+                            cosmic_sigma,
+                            cosmic_window,
+                            cosmic_iterations,
+                            cosmic_min,
                         )
                     else:
                         new_data = combine_images_in_directory(
                             directory_path,
-                            args.cosmic_sigma,
-                            args.cosmic_window,
-                            args.cosmic_iterations,
-                            args.cosmic_min,
+                            cosmic_sigma,
+                            cosmic_window,
+                            cosmic_iterations,
+                            cosmic_min,
                         )
                         combined_data += new_data
 
@@ -265,8 +312,8 @@ def process_measurements(args, callback=None) -> None:
 
             if combined_data is not None:
                 output_filename = os.path.join(
-                    args.output,
-                    f"{args.prefix}_{group['name']}_{measurement_number:04d}.tif",
+                    output_directory,
+                    f"{prefix}_{group['name']}_{measurement_number:04d}.tif",
                 )
                 Image.fromarray(combined_data).save(output_filename)
                 print(f"    Saved combined data to {output_filename}")
