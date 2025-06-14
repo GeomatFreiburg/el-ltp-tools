@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
     QHeaderView,
 )
 from PyQt6.QtCore import QThread, pyqtSignal
-from .combine_script import process_measurements
+from . import process_measurements
 from datetime import datetime
 
 

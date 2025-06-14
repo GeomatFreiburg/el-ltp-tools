@@ -1,12 +1,26 @@
 import os
 import json
+
 import numpy as np
+from PIL import Image
+
 import fabio
-from ..util.cosmic import remove_cosmic_rays
+from ..util.cosmic import detect_cosmic_rays
 
 
-def get_filenames(folder_path):
-    """Get all .tif and .tiff files in the specified folder."""
+def get_tiff_filenames(folder_path: str) -> list[str]:
+    """Get all .tif and .tiff files in the specified folder.
+
+    Parameters
+    ----------
+    folder_path : str
+        The path to the folder containing the images to combine.
+
+    Returns
+    -------
+    list
+        A list of filenames with .tif or .tiff extension.
+    """
     return [
         f
         for f in os.listdir(folder_path)
@@ -15,13 +29,19 @@ def get_filenames(folder_path):
     ]
 
 
-def combine_data(
-    folder_name, cosmic_sigma, cosmic_window, cosmic_iterations, cosmic_min
-):
+def combine_images_in_directory(
+    directory_path: str,
+    cosmic_sigma: float,
+    cosmic_window: int,
+    cosmic_iterations: int,
+    cosmic_min: float,
+) -> np.ndarray:
     """
-    Combines all images (with ".tif" or ".tiff" extension) in the given folder.
+    Combines all tiff/tif images in the given folder.
     The images are combined by adding them together.
-    Cosmic rays are removed from the images using the remove_cosmic_rays function.
+    Cosmic rays are removed from the images using the detect_cosmic_rays function.
+    For each image, pixels identified as cosmic rays are replaced with the average
+    value from the corresponding pixels in other images.
 
     Parameters
     ----------
@@ -38,44 +58,57 @@ def combine_data(
 
     Returns
     -------
-    fabio.fabio.Image
-        The combined image.
+    np.ndarray
+        The combined image data.
     """
-    filenames = get_filenames(folder_name)
+    filenames = get_tiff_filenames(directory_path)
     if not filenames:
-        raise FileNotFoundError(f"No files found in {folder_name}")
+        raise FileNotFoundError(f"No files found in {directory_path}")
 
-    # Get the first file to initialize the combined image
-    first_file = os.path.join(folder_name, filenames[0])
-    img = fabio.open(first_file)
-    # Convert to float immediately after loading
-    img.data = img.data.astype(np.float64)
-    img.data = remove_cosmic_rays(
-        img.data,
-        cosmic_sigma,
-        cosmic_window,
-        cosmic_iterations,
-        cosmic_min,
-    )
+    imgs = [
+        fabio.open(os.path.join(directory_path, filename)) for filename in filenames
+    ]
+    imgs_data = [img.data.astype(np.float64) for img in imgs]
 
-    # Process remaining files
-    for filename in filenames[1:]:
-        file_path = os.path.join(folder_name, filename)
-        img_new = fabio.open(file_path)
-        # Convert to float immediately after loading
-        img_new.data = img_new.data.astype(np.float64)
-        img_new.data = remove_cosmic_rays(
-            img_new.data,
-            cosmic_sigma,
-            cosmic_window,
-            cosmic_iterations,
-            cosmic_min,
+    # Detect cosmic rays with multiple iterations
+    def get_cosmic_mask(img_data):
+        combined_mask = np.zeros_like(img_data, dtype=bool)
+        cosmic_counts = []
+        for _ in range(cosmic_iterations):
+            cosmic_mask = detect_cosmic_rays(
+                img_data, cosmic_sigma, cosmic_window, cosmic_min
+            )
+            img_data[cosmic_mask] = np.nan
+            combined_mask = np.logical_or(combined_mask, cosmic_mask)
+            cosmic_counts.append(np.sum(cosmic_mask))
+        print(f"        Found cosmic rays: {', '.join(map(str, cosmic_counts))}")
+        return combined_mask
+
+    cosmic_masks = [get_cosmic_mask(img_data) for img_data in imgs_data]
+
+    # Set cosmic ray pixels to NaN in all images and replace with the average of other images
+    imgs_data_nan = [
+        np.where(cosmic_masks[i], np.nan, imgs_data[i]) for i in range(len(imgs_data))
+    ]
+
+    # Replace cosmic ray pixels with the average of other images
+    imgs_data = [
+        np.where(
+            cosmic_masks[i],
+            np.nanmean(
+                [imgs_data_nan[j] for j in range(len(imgs_data)) if j != i], axis=0
+            ),
+            imgs_data[i],
         )
-        img.data += img_new.data
-    return img
+        for i in range(len(imgs_data))
+    ]
+
+    return np.sum(imgs_data, axis=0)
 
 
-def get_folder_groups(start_idx, config, input_folder):
+def get_folder_groups(
+    start_idx: int, config: list, input_folder: str
+) -> tuple[list, int]:
     """Group folders based on config and available folders, starting from start_idx.
 
     Parameters
@@ -129,7 +162,7 @@ def get_folder_groups(start_idx, config, input_folder):
     return groups, current_index
 
 
-def process_measurements(args, callback=None):
+def process_measurements(args, callback=None) -> None:
     """Process all measurements and combine data according to groups.
 
     Parameters
@@ -146,7 +179,7 @@ def process_measurements(args, callback=None):
         raise FileNotFoundError(f"Input directory not found: {input_folder}")
 
     # Check if input directory is readable
-    if not os.access(input_folder, os.R.OK):
+    if not os.access(input_folder, os.R_OK):
         raise PermissionError(f"No permission to read input directory: {input_folder}")
 
     # Create output directory if it doesn't exist
@@ -196,7 +229,7 @@ def process_measurements(args, callback=None):
                 print(f"    Combining data from {folder_name}")
                 try:
                     if combined_data is None:
-                        combined_data = combine_data(
+                        combined_data = combine_images_in_directory(
                             folder_path,
                             args.cosmic_sigma,
                             args.cosmic_window,
@@ -204,14 +237,14 @@ def process_measurements(args, callback=None):
                             args.cosmic_min,
                         )
                     else:
-                        new_data = combine_data(
+                        new_data = combine_images_in_directory(
                             folder_path,
                             args.cosmic_sigma,
                             args.cosmic_window,
                             args.cosmic_iterations,
                             args.cosmic_min,
                         )
-                        combined_data.data += new_data.data
+                        combined_data += new_data
 
                 except Exception as e:
                     print(f"    Error processing {folder_name}: {e}")
@@ -219,9 +252,10 @@ def process_measurements(args, callback=None):
 
             if combined_data is not None:
                 output_filename = os.path.join(
-                    args.output, f"{args.prefix}_{group['name']}_{measurement_number:04d}.tif"
+                    args.output,
+                    f"{args.prefix}_{group['name']}_{measurement_number:04d}.tif",
                 )
-                combined_data.write(output_filename)
+                Image.fromarray(combined_data).save(output_filename)
                 print(f"    Saved combined data to {output_filename}")
 
         current_index = next_index

@@ -2,7 +2,12 @@ import numpy as np
 from scipy import ndimage
 
 
-def detect_cosmic_rays(data, sigma, window_size, min_intensity):
+def detect_cosmic_rays(
+    data: np.ndarray,
+    sigma: float,
+    window_size: int,
+    min_intensity: float,
+) -> np.ndarray:
     """Detect cosmic rays in image data by comparing pixel values to local statistics.
 
     This function identifies cosmic rays by looking for pixels that are significantly
@@ -74,7 +79,13 @@ def detect_cosmic_rays(data, sigma, window_size, min_intensity):
     return combined_mask
 
 
-def remove_cosmic_rays(image, sigma, window_size, iterations, min_intensity):
+def detect_cosmic_rays_multiple_iterations(
+    image: np.ndarray,
+    sigma: float,
+    window_size: int,
+    iterations: int,
+    min_intensity: float,
+) -> np.ndarray:
     """Apply cosmic ray detection and removal through multiple iterations.
 
     This function iteratively detects and removes cosmic rays from the input data.
@@ -100,27 +111,30 @@ def remove_cosmic_rays(image, sigma, window_size, iterations, min_intensity):
     Returns
     -------
     numpy.ndarray
-        Processed data array with cosmic ray pixels replaced by NaN values.
+        Combined boolean mask of all detected cosmic rays across iterations
     """
-    if sigma is not None:
-        # Convert to float before any operations
-        image = image.astype(np.float64)
+    # Convert to float before any operations, make a copy
+    image = image.astype(np.float64).copy()
 
-        # Store counts for each iteration
-        cosmic_counts = []
+    # Store counts for each iteration
+    cosmic_counts = []
 
-        # Iterate multiple times to catch all cosmic rays
-        for i in range(iterations):
-            # Detect cosmic rays
-            cosmic_mask = detect_cosmic_rays(image, sigma, window_size, min_intensity)
+    # Initialize combined mask
+    combined_mask = np.zeros_like(image, dtype=bool)
 
-            # Set cosmic ray pixels to NaN
-            image[cosmic_mask] = np.nan
+    # Iterate multiple times to catch all cosmic rays
+    for i in range(iterations):
+        # Detect cosmic rays
+        cosmic_mask = detect_cosmic_rays(image, sigma, window_size, min_intensity)
+        image[cosmic_mask] = np.nan
 
-            # Store the count
-            cosmic_counts.append(np.sum(cosmic_mask))
+        # Update combined mask
+        combined_mask = np.logical_or(combined_mask, cosmic_mask)
 
-        # Print all counts in one line
-        print(f"        Found cosmic rays: {', '.join(map(str, cosmic_counts))}")
+        # Store the count
+        cosmic_counts.append(np.sum(cosmic_mask))
 
-    return image
+    # Print all counts in one line
+    print(f"        Found cosmic rays: {', '.join(map(str, cosmic_counts))}")
+
+    return combined_mask
