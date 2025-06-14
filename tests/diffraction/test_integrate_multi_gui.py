@@ -4,7 +4,7 @@ import shutil
 import pytest
 from PyQt6.QtWidgets import QApplication, QFileDialog
 from PyQt6.QtCore import Qt, QEventLoop, QTimer
-from el_ltp_tools.diffraction.gui import MainWindow, IntegrationWorker
+from el_ltp_tools.diffraction.integrate_multi_gui import MainWindow, IntegrationWorker
 import numpy as np
 import fabio.tifimage
 from PIL import Image

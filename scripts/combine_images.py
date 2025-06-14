@@ -54,7 +54,7 @@ The script will:
 import argparse
 import os
 import json
-from el_ltp_tools.image_combine import process_measurements
+from el_ltp_tools.combine_images import process_measurements
 
 
 def parse_arguments():

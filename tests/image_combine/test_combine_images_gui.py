@@ -5,7 +5,7 @@ import numpy as np
 from PIL import Image
 from PyQt6.QtWidgets import QApplication, QFileDialog, QPushButton, QTableWidgetItem
 from PyQt6.QtCore import Qt
-from el_ltp_tools.image_combine.gui import MainWindow
+from el_ltp_tools.combine_images.combine_images_gui import MainWindow
 from unittest.mock import patch
 
 
@@ -31,7 +31,7 @@ def create_test_data(tmp_path):
 def mock_state_file(tmp_path):
     """Create a temporary state file for testing."""
     state_file = tmp_path / "test_state.json"
-    with patch('el_ltp_tools.image_combine.gui.MainWindow.get_state_file_path') as mock_get_path:
+    with patch('el_ltp_tools.combine_images.combine_images_gui.MainWindow.get_state_file_path') as mock_get_path:
         mock_get_path.return_value = str(state_file)
         yield state_file
 

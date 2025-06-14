@@ -23,8 +23,8 @@ dependencies = [
 el-ltp-remove-cosmic = "scripts.remove_cosmic:main"
 el-ltp-combine-images = "scripts.combine_images:main"
 el-ltp-integrate-multi = "scripts.integrate_multi:main"
-el-ltp-combine-images-gui = "el_ltp_tools.image_combine.gui:main"
-el-ltp-integrate-multi-gui = "el_ltp_tools.diffraction.gui:main"
+el-ltp-combine-images-gui = "el_ltp_tools.image_combine.combine_images_gui:main"
+el-ltp-integrate-multi-gui = "el_ltp_tools.diffraction.integrate_multi_gui:main"
 
 [tool.poetry]
 packages = [

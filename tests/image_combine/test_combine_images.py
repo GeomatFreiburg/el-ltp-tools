@@ -2,7 +2,7 @@ import os
 import json
 import numpy as np
 import pytest
-from el_ltp_tools.image_combine import (
+from el_ltp_tools.combine_images import (
     get_tiff_filenames,
     combine_images_in_directory,
     get_directory_groups,
