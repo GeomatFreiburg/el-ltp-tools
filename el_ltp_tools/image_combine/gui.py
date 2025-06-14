@@ -217,9 +217,9 @@ class MainWindow(QMainWindow):
         # Add default rows
         self.config_table.setRowCount(2)
         for i in range(2):
-            num_images_item = QTableWidgetItem("2")
+            num_directories_item = QTableWidgetItem("2")
             name_item = QTableWidgetItem("center" if i == 0 else "side")
-            self.config_table.setItem(i, 0, num_images_item)
+            self.config_table.setItem(i, 0, num_directories_item)
             self.config_table.setItem(i, 1, name_item)
 
         # Add/Remove row buttons
@@ -379,9 +379,9 @@ class MainWindow(QMainWindow):
 
         # Save configuration table
         for row in range(self.config_table.rowCount()):
-            num_images = self.config_table.item(row, 0).text()
+            num_directories = self.config_table.item(row, 0).text()
             name = self.config_table.item(row, 1).text()
-            state["config_table"].append({"num_images": num_images, "name": name})
+            state["config_table"].append({"num_directories": num_directories, "name": name})
 
         try:
             with open(self.get_state_file_path(), "w") as f:
@@ -422,7 +422,7 @@ class MainWindow(QMainWindow):
                 self.config_table.setRowCount(len(config_table))
                 for row, config in enumerate(config_table):
                     self.config_table.setItem(
-                        row, 0, QTableWidgetItem(str(config["num_images"]))
+                        row, 0, QTableWidgetItem(str(config["num_directories"]))
                     )
                     self.config_table.setItem(row, 1, QTableWidgetItem(config["name"]))
 
@@ -480,12 +480,12 @@ class MainWindow(QMainWindow):
         # Get configuration from table
         config = []
         for row in range(self.config_table.rowCount()):
-            num_images = self.config_table.item(row, 0).text()
+            num_directories = self.config_table.item(row, 0).text()
             name = self.config_table.item(row, 1).text()
-            if not num_images or not name:
+            if not num_directories or not name:
                 self.handle_error("Please fill in all configuration fields")
                 return
-            config.append({"num_images": int(num_images), "name": name})
+            config.append({"num_directories": int(num_directories), "name": name})
 
         # Create worker thread
         self.worker = ConversionWorker(

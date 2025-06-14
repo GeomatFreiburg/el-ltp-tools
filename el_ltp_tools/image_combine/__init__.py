@@ -124,7 +124,7 @@ def get_directory_groups(
     start_idx : int
         The starting index for the directory groups.
     config : list
-        The configuration for the directory groups.
+        The configuration for the directory groups. Each group should have a 'name' and 'num_directories' field.
     input_directory : str
         The path to the input directory.
     directory_pattern : str, optional
@@ -148,10 +148,10 @@ def get_directory_groups(
     for group_config in config:
         group_directories = []
         print(
-            f"    Looking for {group_config['num_images']} directories for group '{group_config['name']}'"
+            f"    Looking for {group_config['num_directories']} directories for group '{group_config['name']}'"
         )
 
-        for _ in range(group_config["num_images"]):
+        for _ in range(group_config["num_directories"]):
             # Find all directories that match the pattern
             matching_directories = []
             for directory_name in os.listdir(input_directory):
@@ -209,7 +209,8 @@ def process_measurements(
         Path where the combined output files will be saved.
     config : str
         JSON string containing the configuration for directory groups.
-        Each group should have a 'name' and 'num_images' field.
+        Each group should have a 'name' and 'num_directories' field.
+        Example: [{"num_directories": 2, "name": "center"}, {"num_directories": 2, "name": "side"}]
     start_index : int
         The starting index for processing directories.
     end_index : int

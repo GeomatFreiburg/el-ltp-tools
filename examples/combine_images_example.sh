@@ -26,9 +26,9 @@ COSMIC_MIN=50.0
 # Set measurement configuration
 # This JSON string defines how images should be grouped and combined
 # Each group needs:
-#   - num_images: Number of images to combine
+#   - num_directories: Number of directories to combine
 #   - name: Identifier for the group
-CONFIG='[{"num_images": 2, "name": "center"}, {"num_images": 2, "name": "side"}]'
+CONFIG='[{"num_directories": 2, "name": "center"}, {"num_directories": 2, "name": "side"}]'
 
 echo "Processing CaSiO3 data..."
 echo "Input directory: $INPUT_DIR"

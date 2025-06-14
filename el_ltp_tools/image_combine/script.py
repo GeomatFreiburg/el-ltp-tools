@@ -38,7 +38,7 @@ Examples:
 
     # Custom measurement configuration:
     python script.py --input /path/to/input --output /path/to/output \
-        --config '[{"num_images": 3, "name": "center"}, {"num_images": 3, "name": "side"}]'
+        --config '[{"num_directories": 3, "name": "center"}, {"num_directories": 3, "name": "side"}]'
 
 The script will:
 1. Read images from the input directory
@@ -94,11 +94,11 @@ def parse_arguments():
     parser.add_argument(
         "--config",
         type=str,
-        default='[{"num_images": 2, "name": "center"}, {"num_images": 2, "name": "side"}]',
+        default='[{"num_directories": 2, "name": "center"}, {"num_directories": 2, "name": "side"}]',
         help='JSON string defining the measurement configuration. Each group should have '
-             '"num_images" (number of images to combine) and "name" (identifier for the group). '
-             'Default configuration processes 2 center images and 2 side images. '
-             'Example: [{"num_images": 2, "name": "center"}, {"num_images": 2, "name": "side"}]'
+             '"num_directories" (number of directories to combine) and "name" (identifier for the group). '
+             'Default configuration processes 2 center directories and 2 side directories. '
+             'Example: [{"num_directories": 2, "name": "center"}, {"num_directories": 2, "name": "side"}]'
     )
     parser.add_argument(
         "--start", "-s", 
