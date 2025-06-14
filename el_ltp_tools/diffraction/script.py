@@ -95,7 +95,23 @@ Example: '{"detector1": {"calibration": "cal1.json", "mask": "mask1.npy"}}'"""
 
 
 def parse_config(args) -> Dict[str, DetectorConfig]:
-    """Parse detector configurations from command line arguments."""
+    """Parse detector configurations from command line arguments.
+    
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Command line arguments containing detector configurations.
+        
+    Returns
+    -------
+    Dict[str, DetectorConfig]
+        Dictionary mapping detector names to their configurations.
+        
+    Raises
+    ------
+    ValueError
+        If no detector configurations are provided.
+    """
     if args.config_json:
         # Parse from JSON string
         return json.loads(args.config_json)
@@ -114,6 +130,14 @@ def parse_config(args) -> Dict[str, DetectorConfig]:
 
 
 def main():
+    """Main entry point for the script.
+    
+    This function:
+    1. Parses command line arguments
+    2. Creates the output directory
+    3. Processes the diffraction data
+    4. Displays a plot of the integrated patterns
+    """
     args = parse_args()
     
     # Create output directory if it doesn't exist

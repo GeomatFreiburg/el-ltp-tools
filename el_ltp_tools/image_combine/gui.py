@@ -25,7 +25,21 @@ from datetime import datetime
 
 
 class ConversionWorker(QThread):
-    """Worker thread for running the conversion process."""
+    """Worker thread for running the conversion process.
+    
+    This class handles the background processing of image combination tasks,
+    including cosmic ray detection and removal. It provides progress updates
+    and error handling through Qt signals.
+    
+    Signals
+    -------
+    progress : pyqtSignal(str)
+        Emitted with progress messages during processing.
+    finished : pyqtSignal()
+        Emitted when processing completes successfully.
+    error : pyqtSignal(str)
+        Emitted when an error occurs during processing.
+    """
 
     progress = pyqtSignal(str)
     finished = pyqtSignal()
@@ -33,6 +47,31 @@ class ConversionWorker(QThread):
 
     def __init__(self, input_directory, output_directory, config, start_index, end_index,
                  cosmic_sigma, cosmic_window, cosmic_iterations, cosmic_min, prefix):
+        """Initialize the worker thread.
+        
+        Parameters
+        ----------
+        input_directory : str
+            Path to the directory containing input images.
+        output_directory : str
+            Path where combined images will be saved.
+        config : str
+            JSON string containing the configuration for directory groups.
+        start_index : int
+            Starting index for processing directories.
+        end_index : int
+            Ending index for processing directories.
+        cosmic_sigma : float
+            Sigma value for cosmic ray detection.
+        cosmic_window : int
+            Window size for cosmic ray detection.
+        cosmic_iterations : int
+            Number of iterations for cosmic ray detection.
+        cosmic_min : float
+            Minimum intensity threshold for cosmic ray detection.
+        prefix : str
+            Prefix for output filenames.
+        """
         super().__init__()
         self.input_directory = input_directory
         self.output_directory = output_directory
@@ -48,12 +87,28 @@ class ConversionWorker(QThread):
         self._original_print = print
 
     def stop(self):
+        """Stop the processing thread."""
         self._is_running = False
 
     def should_continue(self):
+        """Check if processing should continue.
+        
+        Returns
+        -------
+        bool
+            True if processing should continue, False if it should stop.
+        """
         return self._is_running
 
     def run(self):
+        """Run the image combination process.
+        
+        This method:
+        1. Sets up custom print function to capture output
+        2. Processes the images using process_measurements
+        3. Handles errors and emits appropriate signals
+        4. Restores the original print function
+        """
         # Override print to capture output
         def custom_print(*args, **kwargs):
             if not self._is_running:
@@ -101,7 +156,18 @@ class ConversionWorker(QThread):
 
 
 class MainWindow(QMainWindow):
+    """Main window for the image combination application.
+    
+    This class provides a graphical user interface for combining images
+    with cosmic ray detection and removal. It includes settings for:
+    - Input/output directories
+    - File naming and indexing
+    - Cosmic ray detection parameters
+    - Measurement configuration
+    """
+
     def __init__(self):
+        """Initialize the main window and its components."""
         super().__init__()
         self.setWindowTitle("Combine Soller Slit P02.2 Data")
         self.setMinimumWidth(800)
@@ -351,7 +417,13 @@ class MainWindow(QMainWindow):
         self.load_state()
 
     def get_state_file_path(self):
-        """Get the path to the state file."""
+        """Get the path to the state file.
+        
+        Returns
+        -------
+        str
+            Path to the state file in the user's home directory.
+        """
         # Get user's home directory
         home_dir = os.path.expanduser("~")
         config_dir = os.path.join(home_dir, ".el_ltp_tools")
@@ -362,7 +434,14 @@ class MainWindow(QMainWindow):
         return os.path.join(config_dir, "combined_data_gui_state.json")
 
     def save_state(self):
-        """Save the current state of the GUI to a file."""
+        """Save the current application state to a file.
+        
+        This includes:
+        - Input/output directories
+        - File settings
+        - Cosmic ray detection parameters
+        - Measurement configuration
+        """
         state = {
             "input_dir": self.input_dir.text(),
             "output_dir": self.output_dir.text(),
@@ -390,7 +469,14 @@ class MainWindow(QMainWindow):
             self.log(f"Error saving state: {str(e)}")
 
     def load_state(self):
-        """Load the saved state of the GUI from a file."""
+        """Load the application state from a file.
+        
+        This restores:
+        - Input/output directories
+        - File settings
+        - Cosmic ray detection parameters
+        - Measurement configuration
+        """
         try:
             with open(self.get_state_file_path(), "r") as f:
                 state = json.load(f)
@@ -433,11 +519,24 @@ class MainWindow(QMainWindow):
             self.log(f"Error loading state: {str(e)}")
 
     def closeEvent(self, event):
-        """Handle window close event."""
+        """Handle window close event.
+        
+        Parameters
+        ----------
+        event : QCloseEvent
+            The close event.
+        """
         self.save_state()
         super().closeEvent(event)
 
     def browse_directory(self, line_edit):
+        """Open a directory browser dialog.
+        
+        Parameters
+        ----------
+        line_edit : QLineEdit
+            The line edit widget to update with the selected directory.
+        """
         directory = QFileDialog.getExistingDirectory(
             self, 
             "Select Directory",
@@ -448,24 +547,40 @@ class MainWindow(QMainWindow):
             self.last_directory = directory  # Update last used directory
 
     def log(self, message):
-        """Add a message to the log output."""
+        """Add a message to the log.
+        
+        Parameters
+        ----------
+        message : str
+            The message to add to the log.
+        """
         if message.startswith("Error:"):
             self.log_output.append(f'<span style="color: red;">{message}</span>')
         else:
             self.log_output.append(message)
 
     def add_config_row(self):
+        """Add a new row to the configuration table."""
         current_row = self.config_table.rowCount()
         self.config_table.insertRow(current_row)
         self.config_table.setItem(current_row, 0, QTableWidgetItem("2"))
         self.config_table.setItem(current_row, 1, QTableWidgetItem(""))
 
     def remove_config_row(self):
+        """Remove the last row from the configuration table."""
         current_row = self.config_table.currentRow()
         if current_row >= 0:
             self.config_table.removeRow(current_row)
 
     def start_conversion(self):
+        """Start the image combination process.
+        
+        This method:
+        1. Validates all inputs
+        2. Creates the worker thread
+        3. Connects signals
+        4. Starts processing
+        """
         # Validate inputs
         if not self.input_dir.text():
             self.handle_error("Please specify an input directory")
@@ -523,11 +638,18 @@ class MainWindow(QMainWindow):
         self.worker.start()
 
     def handle_error(self, error_message):
-        """Handle error messages from the worker thread."""
+        """Handle an error message.
+        
+        Parameters
+        ----------
+        error_message : str
+            The error message to display.
+        """
         self.log(error_message)
         self.stop_conversion()
 
     def stop_conversion(self):
+        """Stop the current conversion process."""
         if self.worker is not None:
             self.worker.stop()
             self.log_output.append("")  # Add empty line before stop message
@@ -544,6 +666,7 @@ class MainWindow(QMainWindow):
             self.stop_button.setEnabled(False)
 
     def conversion_finished(self):
+        """Handle completion of the conversion process."""
         self.start_button.setEnabled(True)
         self.stop_button.setEnabled(False)
         self.log_output.append("")  # Add empty line before completion message
@@ -558,11 +681,18 @@ class MainWindow(QMainWindow):
         self.log_output.append("")  # Add empty line after completion message
 
     def clear_log(self):
-        """Clear the log output."""
+        """Clear the log display."""
         self.log_output.clear()
 
 
 def main():
+    """Main entry point for the application.
+    
+    This function:
+    1. Creates the QApplication
+    2. Creates and shows the main window
+    3. Starts the event loop
+    """
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()

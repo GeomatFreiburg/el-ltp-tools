@@ -11,9 +11,12 @@ from typing import TypedDict, Dict
 class DetectorConfig(TypedDict):
     """Configuration for a single detector position.
     
-    Attributes:
-        calibration: Path to the .poni calibration file for this detector position
-        mask: Path to the mask file (.mask) for this detector position
+    Parameters
+    ----------
+    calibration : str
+        Path to the .poni calibration file for this detector position.
+    mask : str
+        Path to the mask file (.mask) for this detector position.
     """
     calibration: str
     mask: str
@@ -22,12 +25,17 @@ class DetectorConfig(TypedDict):
 def get_sorted_files(base_path: str, keyword: str) -> list[str]:
     """Find and sort files based on keyword and their index number.
     
-    Args:
-        base_path: Directory to search for files
-        keyword: Keyword to match in filenames (e.g., 'center', 'side')
+    Parameters
+    ----------
+    base_path : str
+        Directory to search for files.
+    keyword : str
+        Keyword to match in filenames (e.g., 'center', 'side').
         
-    Returns:
-        List of sorted file paths matching the pattern
+    Returns
+    -------
+    list[str]
+        List of sorted file paths matching the pattern.
     """
     pattern = f"{base_path}/*{keyword}*.tif"
     files = glob.glob(pattern)
@@ -49,25 +57,31 @@ def integrate_multi(
     each with its own calibration and mask, and integrates them together using
     pyFAI's MultiGeometry integration.
     
-    Args:
-        input_dir: Directory containing the input .tif files
-        output_dir: Directory where integrated .xy files will be saved
-        config: Dictionary mapping detector position names to their configurations.
-               Each configuration must specify calibration and mask file paths.
-               Example:
-               {
-                   "center": {
-                       "calibration": "path/to/center.poni",
-                       "mask": "path/to/center.mask"
-                   },
-                   "side": {
-                       "calibration": "path/to/side.poni",
-                       "mask": "path/to/side.mask"
-                   }
-               }
+    Parameters
+    ----------
+    input_dir : str
+        Directory containing the input .tif files.
+    output_dir : str
+        Directory where integrated .xy files will be saved.
+    config : Dict[str, DetectorConfig]
+        Dictionary mapping detector position names to their configurations.
+        Each configuration must specify calibration and mask file paths.
+        Example:
+        {
+            "center": {
+                "calibration": "path/to/center.poni",
+                "mask": "path/to/center.mask"
+            },
+            "side": {
+                "calibration": "path/to/side.poni",
+                "mask": "path/to/side.mask"
+            }
+        }
                
-    Returns:
-        List of tuples containing (q, I) arrays for each integrated pattern
+    Returns
+    -------
+    list[tuple[np.ndarray, np.ndarray]]
+        List of tuples containing (q, I) arrays for each integrated pattern.
     """
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
