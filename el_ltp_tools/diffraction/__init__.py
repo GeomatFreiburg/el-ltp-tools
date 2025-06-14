@@ -99,6 +99,10 @@ def integrate_multi(
         for config_name in config.keys()
     }
     
+    # Check if any configuration has no files
+    if not any(config_files.values()):
+        raise ValueError("No files found in any configuration!")
+    
     # Ensure all configurations have the same number of files
     num_files = len(next(iter(config_files.values())))
     if not all(len(files) == num_files for files in config_files.values()):
