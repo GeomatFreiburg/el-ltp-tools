@@ -267,41 +267,41 @@ class MainWindow(QMainWindow):
         cosmic_group.setLayout(cosmic_layout)
         left_layout.addWidget(cosmic_group)
 
-        # Configuration section
+        # Measurement configuration section
         config_group = QGroupBox("Measurement Configuration")
         config_layout = QVBoxLayout()
 
-        # Create table widget
+        # Table for configuration
         self.config_table = QTableWidget()
         self.config_table.setColumnCount(2)
-        self.config_table.setHorizontalHeaderLabels(["N Directories", "Name"])
-        self.config_table.horizontalHeader().setSectionResizeMode(
-            1, QHeaderView.ResizeMode.Stretch
-        )
-        self.config_table.setMinimumHeight(200)  # Set minimum height for the table
-
-        # Add default rows
-        self.config_table.setRowCount(2)
-        for i in range(2):
-            num_directories_item = QTableWidgetItem("2")
-            name_item = QTableWidgetItem("center" if i == 0 else "side")
-            self.config_table.setItem(i, 0, num_directories_item)
-            self.config_table.setItem(i, 1, name_item)
-
-        # Add/Remove row buttons
-        button_layout = QHBoxLayout()
-        add_row_btn = QPushButton("Add Row")
-        remove_row_btn = QPushButton("Remove Row")
-        add_row_btn.clicked.connect(self.add_config_row)
-        remove_row_btn.clicked.connect(self.remove_config_row)
-        button_layout.addWidget(add_row_btn)
-        button_layout.addWidget(remove_row_btn)
-
+        self.config_table.setHorizontalHeaderLabels(["Measurement Name", "Number of Directories"])
+        self.config_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         config_layout.addWidget(self.config_table)
-        config_layout.addLayout(button_layout)
+
+        # Buttons for adding/removing rows
+        config_buttons = QHBoxLayout()
+        add_row = QPushButton("Add Measurement")
+        remove_row = QPushButton("Remove Measurement")
+        config_buttons.addWidget(add_row)
+        config_buttons.addWidget(remove_row)
+        config_layout.addLayout(config_buttons)
 
         config_group.setLayout(config_layout)
         left_layout.addWidget(config_group)
+
+        # Connect signals
+        input_browse.clicked.connect(lambda: self.browse_directory(self.input_dir))
+        output_browse.clicked.connect(lambda: self.browse_directory(self.output_dir))
+        add_row.clicked.connect(self.add_config_row)
+        remove_row.clicked.connect(self.remove_config_row)
+
+        # Add default configuration rows
+        self.add_config_row()
+        self.add_config_row()
+        self.config_table.setItem(0, 0, QTableWidgetItem("center"))
+        self.config_table.setItem(0, 1, QTableWidgetItem("2"))
+        self.config_table.setItem(1, 0, QTableWidgetItem("side"))
+        self.config_table.setItem(1, 1, QTableWidgetItem("2"))
 
         # Add left widget to main layout
         main_layout.addWidget(left_widget, stretch=1)  # Changed from 2 to 1
@@ -406,10 +406,6 @@ class MainWindow(QMainWindow):
         # Add right widget to main layout
         main_layout.addWidget(right_widget, stretch=1)  # Changed from 1 to 1
 
-        # Connect browse buttons
-        input_browse.clicked.connect(lambda: self.browse_directory(self.input_dir))
-        output_browse.clicked.connect(lambda: self.browse_directory(self.output_dir))
-
         # Initialize worker
         self.worker = None
 
@@ -433,90 +429,71 @@ class MainWindow(QMainWindow):
         
         return os.path.join(config_dir, "combined_data_gui_state.json")
 
-    def save_state(self):
-        """Save the current application state to a file.
+    def get_config_json(self):
+        """Get the configuration as a JSON string.
         
-        This includes:
-        - Input/output directories
-        - File settings
-        - Cosmic ray detection parameters
-        - Measurement configuration
+        Returns
+        -------
+        str
+            JSON string containing the configuration.
         """
+        config = {}
+        for row in range(self.config_table.rowCount()):
+            name_item = self.config_table.item(row, 0)
+            num_dirs_item = self.config_table.item(row, 1)
+            if name_item and num_dirs_item:
+                try:
+                    num_dirs = int(num_dirs_item.text())
+                    config[name_item.text()] = num_dirs
+                except ValueError:
+                    pass
+        return json.dumps([config])
+
+    def save_state(self):
+        """Save the current state of the application."""
         state = {
-            "input_dir": self.input_dir.text(),
-            "output_dir": self.output_dir.text(),
+            "input_directory": self.input_dir.text(),
+            "output_directory": self.output_dir.text(),
             "prefix": self.prefix.text(),
-            "start_idx": self.start_idx.value(),
-            "end_idx": self.end_idx.value(),
+            "start_index": self.start_idx.value(),
+            "end_index": self.end_idx.value(),
             "cosmic_sigma": self.cosmic_sigma.value(),
             "cosmic_window": self.cosmic_window.value(),
             "cosmic_iterations": self.cosmic_iterations.value(),
             "cosmic_min": self.cosmic_min.value(),
-            "config_table": [],
-            "last_directory": self.last_directory,  # Save last used directory
+            "config": self.get_config_json()
         }
-
-        # Save configuration table
-        for row in range(self.config_table.rowCount()):
-            num_directories = self.config_table.item(row, 0).text()
-            name = self.config_table.item(row, 1).text()
-            state["config_table"].append({"num_directories": num_directories, "name": name})
-
-        try:
-            with open(self.get_state_file_path(), "w") as f:
-                json.dump(state, f, indent=2)
-        except Exception as e:
-            self.log(f"Error saving state: {str(e)}")
+        
+        with open(self.get_state_file_path(), "w") as f:
+            json.dump(state, f)
 
     def load_state(self):
-        """Load the application state from a file.
-        
-        This restores:
-        - Input/output directories
-        - File settings
-        - Cosmic ray detection parameters
-        - Measurement configuration
-        """
+        """Load the saved state of the application."""
         try:
             with open(self.get_state_file_path(), "r") as f:
                 state = json.load(f)
-
-            # Load basic settings
-            self.input_dir.setText(state.get("input_dir", self.input_dir.text()))
-            self.output_dir.setText(state.get("output_dir", self.output_dir.text()))
-            self.prefix.setText(state.get("prefix", self.prefix.text()))
-            self.start_idx.setValue(state.get("start_idx", self.start_idx.value()))
-            self.end_idx.setValue(state.get("end_idx", self.end_idx.value()))
-            self.cosmic_sigma.setValue(
-                state.get("cosmic_sigma", self.cosmic_sigma.value())
-            )
-            self.cosmic_window.setValue(
-                state.get("cosmic_window", self.cosmic_window.value())
-            )
-            self.cosmic_iterations.setValue(
-                state.get("cosmic_iterations", self.cosmic_iterations.value())
-            )
-            self.cosmic_min.setValue(state.get("cosmic_min", self.cosmic_min.value()))
+                
+            self.input_dir.setText(state.get("input_directory", ""))
+            self.output_dir.setText(state.get("output_directory", ""))
+            self.prefix.setText(state.get("prefix", ""))
+            self.start_idx.setValue(state.get("start_index", 2))
+            self.end_idx.setValue(state.get("end_index", 97))
+            self.cosmic_sigma.setValue(state.get("cosmic_sigma", 6.0))
+            self.cosmic_window.setValue(state.get("cosmic_window", 10))
+            self.cosmic_iterations.setValue(state.get("cosmic_iterations", 3))
+            self.cosmic_min.setValue(state.get("cosmic_min", 50.0))
             
-            # Load last used directory, defaulting to the input directory if available
-            self.last_directory = state.get("last_directory", 
-                state.get("input_dir", os.path.expanduser("~")))
-
-            # Load configuration table
-            config_table = state.get("config_table", [])
-            if config_table:
-                self.config_table.setRowCount(len(config_table))
-                for row, config in enumerate(config_table):
-                    self.config_table.setItem(
-                        row, 0, QTableWidgetItem(str(config["num_directories"]))
-                    )
-                    self.config_table.setItem(row, 1, QTableWidgetItem(config["name"]))
-
-        except FileNotFoundError:
-            # No saved state, use defaults
+            # Load configuration
+            config = json.loads(state.get("config", '[{"center": 2, "side": 2}]'))[0]
+            self.config_table.setRowCount(0)  # Clear existing rows
+            for name, num_dirs in config.items():
+                self.add_config_row()
+                row = self.config_table.rowCount() - 1
+                self.config_table.setItem(row, 0, QTableWidgetItem(name))
+                self.config_table.setItem(row, 1, QTableWidgetItem(str(num_dirs)))
+                
+        except (FileNotFoundError, json.JSONDecodeError):
             pass
-        except Exception as e:
-            self.log(f"Error loading state: {str(e)}")
 
     def closeEvent(self, event):
         """Handle window close event.
@@ -563,8 +540,8 @@ class MainWindow(QMainWindow):
         """Add a new row to the configuration table."""
         current_row = self.config_table.rowCount()
         self.config_table.insertRow(current_row)
-        self.config_table.setItem(current_row, 0, QTableWidgetItem("2"))
-        self.config_table.setItem(current_row, 1, QTableWidgetItem(""))
+        self.config_table.setItem(current_row, 0, QTableWidgetItem(""))
+        self.config_table.setItem(current_row, 1, QTableWidgetItem("2"))
 
     def remove_config_row(self):
         """Remove the last row from the configuration table."""
@@ -573,40 +550,30 @@ class MainWindow(QMainWindow):
             self.config_table.removeRow(current_row)
 
     def start_conversion(self):
-        """Start the image combination process.
-        
-        This method:
-        1. Validates all inputs
-        2. Creates the worker thread
-        3. Connects signals
-        4. Starts processing
-        """
-        # Validate inputs
-        if not self.input_dir.text():
-            self.handle_error("Please specify an input directory")
-            return
-        if not self.output_dir.text():
-            self.handle_error("Please specify an output directory")
-            return
-        if not self.prefix.text():
-            self.handle_error("Please specify a prefix")
-            return
-
+        """Start the image combination process."""
         # Get configuration from table
-        config = []
+        config = {}
         for row in range(self.config_table.rowCount()):
-            num_directories = self.config_table.item(row, 0).text()
-            name = self.config_table.item(row, 1).text()
-            if not num_directories or not name:
-                self.handle_error("Please fill in all configuration fields")
-                return
-            config.append({"num_directories": int(num_directories), "name": name})
+            name_item = self.config_table.item(row, 0)
+            num_dirs_item = self.config_table.item(row, 1)
+            if name_item and num_dirs_item:
+                try:
+                    name = name_item.text()
+                    num_dirs = int(num_dirs_item.text())
+                    config[name] = num_dirs
+                except ValueError:
+                    self.handle_error(f"Invalid number of directories in row {row + 1}")
+                    return
 
-        # Create worker thread
+        if not config:
+            self.handle_error("No valid configuration found")
+            return
+
+        # Create worker
         self.worker = ConversionWorker(
             input_directory=self.input_dir.text(),
             output_directory=self.output_dir.text(),
-            config=json.dumps(config),
+            config=json.dumps([config]),
             start_index=self.start_idx.value(),
             end_index=self.end_idx.value(),
             cosmic_sigma=self.cosmic_sigma.value(),
@@ -616,26 +583,15 @@ class MainWindow(QMainWindow):
             prefix=self.prefix.text()
         )
 
-        # Disable controls
-        self.start_button.setEnabled(False)
-        self.stop_button.setEnabled(True)
-
-        # Add separator to log
-        self.log_output.append("=" * 40)
-        self.log_output.append(
-            '<span style="color: #CCCCCC; font-weight: bold;">▶ Starting new conversion process</span>'
-        )
-        self.log_output.append(
-            f'<span style="color: gray;">{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</span>'
-        )
-        self.log_output.append("=" * 40)
-        self.log_output.append("")
-
-        # Start conversion
+        # Connect signals
         self.worker.progress.connect(self.log)
         self.worker.error.connect(self.handle_error)
         self.worker.finished.connect(self.conversion_finished)
+
+        # Start processing
         self.worker.start()
+        self.start_button.setEnabled(False)
+        self.stop_button.setEnabled(True)
 
     def handle_error(self, error_message):
         """Handle an error message.

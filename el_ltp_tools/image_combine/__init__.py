@@ -124,7 +124,8 @@ def get_directory_groups(
     start_idx : int
         The starting index for the directory groups.
     config : list
-        The configuration for the directory groups. Each group should have a 'name' and 'num_directories' field.
+        The configuration for the directory groups. Each object maps group names to their number of directories.
+        Example: [{"center": 2, "side": 2}]
     input_directory : str
         The path to the input directory.
     directory_pattern : str, optional
@@ -145,13 +146,14 @@ def get_directory_groups(
 
     print(f"  Checking directories starting from index {current_index}")
 
-    for group_config in config:
-        group_directories = []
-        print(
-            f"    Looking for {group_config['num_directories']} directories for group '{group_config['name']}'"
-        )
+    # Get the first (and only) configuration object
+    group_configs = config[0]
 
-        for _ in range(group_config["num_directories"]):
+    for group_name, num_directories in group_configs.items():
+        group_directories = []
+        print(f"    Looking for {num_directories} directories for group '{group_name}'")
+
+        for _ in range(num_directories):
             # Find all directories that match the pattern
             matching_directories = []
             for directory_name in os.listdir(input_directory):
@@ -162,9 +164,7 @@ def get_directory_groups(
                         matching_directories.append(directory_name)
 
             if matching_directories:
-                directory_name = matching_directories[
-                    0
-                ]  # Take the first matching directory
+                directory_name = matching_directories[0]  # Take the first matching directory
                 directory_path = os.path.join(input_directory, directory_name)
                 print(f"      Found directory: {directory_name}")
                 group_directories.append(directory_name)
@@ -174,14 +174,10 @@ def get_directory_groups(
             current_index += 1
 
         if group_directories:
-            groups.append(
-                {"name": group_config["name"], "directories": group_directories}
-            )
-            print(
-                f"    Added group '{group_config['name']}' with {len(group_directories)} directories"
-            )
+            groups.append({"name": group_name, "directories": group_directories})
+            print(f"    Added group '{group_name}' with {len(group_directories)} directories")
         else:
-            print(f"    No directories found for group '{group_config['name']}'")
+            print(f"    No directories found for group '{group_name}'")
 
     return groups, current_index
 

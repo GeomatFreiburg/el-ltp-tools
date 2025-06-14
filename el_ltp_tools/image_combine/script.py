@@ -36,9 +36,13 @@ Examples:
     python script.py --input /path/to/input --output /path/to/output \
         --cosmic-sigma 7.0 --cosmic-window 15 --cosmic-iterations 4
 
-    # Custom measurement configuration:
+    # Using individual config arguments:
     python script.py --input /path/to/input --output /path/to/output \
-        --config '[{"num_directories": 3, "name": "center"}, {"num_directories": 3, "name": "side"}]'
+        --config center 2 --config side 2
+
+    # Using JSON configuration:
+    python script.py --input /path/to/input --output /path/to/output \
+        --config-json '[{"center": 2, "side": 2}]'
 
 The script will:
 1. Read images from the input directory
@@ -49,6 +53,7 @@ The script will:
 
 import argparse
 import os
+import json
 from . import process_measurements
 
 
@@ -66,7 +71,8 @@ def parse_arguments():
             - cosmic_window: Window size for local statistics
             - cosmic_iterations: Number of cosmic ray detection iterations
             - cosmic_min: Minimum intensity threshold
-            - config: JSON configuration for measurement groups
+            - config: Individual configuration arguments
+            - config_json: JSON configuration for measurement groups
     """
 
     parser = argparse.ArgumentParser(
@@ -93,12 +99,23 @@ def parse_arguments():
     )
     parser.add_argument(
         "--config",
+        action='append',
+        nargs=2,
+        metavar=('NAME', 'NUM_DIRECTORIES'),
+        help="""Individual configuration value. Can be specified multiple times.
+Format: --config NAME NUM_DIRECTORIES
+- NAME: Group name (e.g. 'center', 'side')
+- NUM_DIRECTORIES: Number of directories to combine for this group
+
+Example: --config center 2 --config side 2"""
+    )
+    parser.add_argument(
+        "--config-json",
         type=str,
-        default='[{"num_directories": 2, "name": "center"}, {"num_directories": 2, "name": "side"}]',
-        help='JSON string defining the measurement configuration. Each group should have '
-             '"num_directories" (number of directories to combine) and "name" (identifier for the group). '
-             'Default configuration processes 2 center directories and 2 side directories. '
-             'Example: [{"num_directories": 2, "name": "center"}, {"num_directories": 2, "name": "side"}]'
+        default='[{"center": 2, "side": 2}]',
+        help='JSON string defining the measurement configuration. Each object maps group names '
+             'to their number of directories. Default configuration processes 2 center directories '
+             'and 2 side directories. Example: [{"center": 2, "side": 2}]'
     )
     parser.add_argument(
         "--start", "-s", 
@@ -166,11 +183,18 @@ def main():
     # Create output directory if it doesn't exist
     os.makedirs(args.output, exist_ok=True)
     
+    # Convert individual config arguments to JSON if provided
+    if args.config:
+        config = {name: int(num_dirs) for name, num_dirs in args.config}
+        config_json = json.dumps([config])
+    else:
+        config_json = args.config_json
+    
     # Process the measurements
     process_measurements(
         input_directory=args.input,
         output_directory=args.output,
-        config=args.config,
+        config=config_json,
         start_index=args.start,
         end_index=args.end,
         cosmic_sigma=args.cosmic_sigma,
