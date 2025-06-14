@@ -146,8 +146,17 @@ def get_directory_groups(
 
     print(f"  Checking directories starting from index {current_index}")
 
+    # Validate configuration
+    if not config:
+        raise ValueError("Empty configuration list provided")
+
     # Get the first (and only) configuration object
     group_configs = config[0]
+
+    # Validate configuration values are integers
+    for group_name, num_directories in group_configs.items():
+        if not isinstance(num_directories, int):
+            raise ValueError(f"Invalid configuration: number of directories for group '{group_name}' must be an integer, got {type(num_directories).__name__}")
 
     for group_name, num_directories in group_configs.items():
         group_directories = []
