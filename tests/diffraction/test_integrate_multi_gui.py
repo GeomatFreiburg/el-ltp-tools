@@ -9,16 +9,39 @@ import numpy as np
 import fabio.tifimage
 from PIL import Image
 import glob
+from pytestqt.qtbot import QtBot
 
 
 @pytest.fixture(scope="session")
-def app():
+def qapp():
     """Create a QApplication instance."""
     app = QApplication.instance()
     if app is None:
         app = QApplication([])
     yield app
     app.quit()
+
+
+@pytest.fixture
+def mock_state(monkeypatch):
+    """Mock state management to prevent saving to user directory."""
+    class MockState:
+        def __init__(self):
+            self.state = {}
+        
+        def save_state(self):
+            pass
+        
+        def load_state(self):
+            pass
+    
+    def mock_get_state_file_path(self):
+        return os.path.join(tempfile.gettempdir(), "test_state.json")
+    
+    # Mock the state management methods
+    monkeypatch.setattr(MainWindow, "save_state", MockState().save_state)
+    monkeypatch.setattr(MainWindow, "load_state", MockState().load_state)
+    monkeypatch.setattr(MainWindow, "get_state_file_path", mock_get_state_file_path)
 
 
 @pytest.fixture
@@ -78,7 +101,7 @@ def test_files(temp_dir):
 
 
 @pytest.fixture
-def configured_window(app, temp_dir, mock_config_files, test_files):
+def configured_window(qapp, temp_dir, mock_config_files, test_files):
     """Create a MainWindow with configured detector settings."""
     window = MainWindow()
     
@@ -99,32 +122,35 @@ def configured_window(app, temp_dir, mock_config_files, test_files):
     return window
 
 
-def test_main_window_initialization(app):
+def test_main_window_initialization(qtbot, mock_state):
     """Test that the main window initializes correctly."""
     window = MainWindow()
-    window.show()  # Make sure the window is shown
-    app.processEvents()  # Process any pending events
+    qtbot.addWidget(window)
+    window.show()
+    qtbot.waitExposed(window)
     
     assert window.windowTitle() == "EL-LTP Tools - Multi-Detector Integration"
     assert window.config_table.rowCount() == 2  # Default rows
     assert window.config_table.columnCount() == 5  # Name, Calibration, Browse, Mask, Browse
     
-    window.close()  # Clean up
-    app.processEvents()  # Process any pending events
+    window.close()
 
 
-def test_config_table_default_values(app):
+def test_config_table_default_values(qtbot, mock_state):
     """Test that the configuration table has correct default values."""
     window = MainWindow()
+    qtbot.addWidget(window)
     # Check first row (center)
     assert window.config_table.item(0, 0).text() == "center"
     # Check second row (side)
     assert window.config_table.item(1, 0).text() == "side"
+    window.close()
 
 
-def test_add_config_row(app):
+def test_add_config_row(qtbot, mock_state):
     """Test adding a new configuration row."""
     window = MainWindow()
+    qtbot.addWidget(window)
     initial_rows = window.config_table.rowCount()
     window.add_config_row()
     assert window.config_table.rowCount() == initial_rows + 1
@@ -133,11 +159,13 @@ def test_add_config_row(app):
     assert window.config_table.item(new_row, 0).text() == ""
     assert window.config_table.item(new_row, 1).text() == ""
     assert window.config_table.item(new_row, 3).text() == ""
+    window.close()
 
 
-def test_remove_config_row(app):
+def test_remove_config_row(qtbot, mock_state):
     """Test removing a configuration row."""
     window = MainWindow()
+    qtbot.addWidget(window)
     # Add a row first
     window.add_config_row()
     initial_rows = window.config_table.rowCount()
@@ -146,11 +174,13 @@ def test_remove_config_row(app):
     # Remove the selected row
     window.remove_config_row()
     assert window.config_table.rowCount() == initial_rows - 1
+    window.close()
 
 
-def test_browse_directory(app, temp_dir, monkeypatch):
+def test_browse_directory(qtbot, temp_dir, mock_state, monkeypatch):
     """Test directory browsing functionality."""
     window = MainWindow()
+    qtbot.addWidget(window)
     
     def mock_get_directory(*args, **kwargs):
         return temp_dir
@@ -161,11 +191,13 @@ def test_browse_directory(app, temp_dir, monkeypatch):
     # Call the browse function
     window.browse_directory(window.input_dir, "Test Directory")
     assert window.input_dir.text() == temp_dir
+    window.close()
 
 
-def test_browse_file(app, temp_dir, mock_config_files, monkeypatch):
+def test_browse_file(qtbot, temp_dir, mock_config_files, mock_state, monkeypatch):
     """Test file browsing functionality."""
     window = MainWindow()
+    qtbot.addWidget(window)
     
     # Add a row to the configuration table
     window.add_config_row()
@@ -185,11 +217,13 @@ def test_browse_file(app, temp_dir, mock_config_files, monkeypatch):
     # Test browsing for mask file
     window.browse_file(0, "mask")
     assert window.config_table.item(0, 3).text() == mock_config_files["mask"]
+    window.close()
 
 
-def test_get_config_table_data(app, mock_config_files):
+def test_get_config_table_data(qtbot, mock_config_files, mock_state):
     """Test getting configuration data from the table."""
     window = MainWindow()
+    qtbot.addWidget(window)
     # Set up the table with our mock files
     window.config_table.item(0, 1).setText(mock_config_files["poni"])
     window.config_table.item(0, 3).setText(mock_config_files["mask"])
@@ -204,13 +238,14 @@ def test_get_config_table_data(app, mock_config_files):
     assert config_data["center"]["mask"] == mock_config_files["mask"]
     assert config_data["side"]["calibration"] == mock_config_files["poni"]
     assert config_data["side"]["mask"] == mock_config_files["mask"]
+    window.close()
 
 
-def wait_for_worker(worker, app, timeout=5000):
+def wait_for_worker(worker, qtbot, timeout=5000):
     """Helper function to wait for a worker to complete with timeout."""
     # Wait for worker to be created
     while worker is None:
-        app.processEvents()
+        qtbot.wait(100)
     
     # Create event loop and wait for worker to finish
     loop = QEventLoop()
@@ -249,7 +284,7 @@ def check_output_files(output_dir, expected_count=3):
 
 
 @pytest.fixture
-def worker_setup(app, temp_dir, mock_config_files, test_files):
+def worker_setup(qapp, temp_dir, mock_config_files, test_files):
     """Setup for worker tests with common configuration."""
     output_dir = os.path.join(temp_dir, "output")
     os.makedirs(output_dir, exist_ok=True)
@@ -272,7 +307,7 @@ def worker_setup(app, temp_dir, mock_config_files, test_files):
     }
 
 
-def test_integration_worker(app, worker_setup):
+def test_integration_worker(qtbot, worker_setup, mock_state):
     """Test the integration worker thread."""
     # Create worker
     worker = IntegrationWorker(
@@ -295,7 +330,7 @@ def test_integration_worker(app, worker_setup):
     
     # Start worker and wait for completion
     worker.start()
-    assert wait_for_worker(worker, app), "Worker timed out"
+    assert wait_for_worker(worker, qtbot), "Worker timed out"
     
     # Check for errors
     assert len(error_messages) == 0, f"Errors occurred: {error_messages}"
@@ -307,7 +342,7 @@ def test_integration_worker(app, worker_setup):
     check_output_files(worker_setup["output_dir"])
 
 
-def test_integration_worker_stop(app, worker_setup):
+def test_integration_worker_stop(qtbot, worker_setup, mock_state):
     """Test stopping the integration worker."""
     # Create worker
     worker = IntegrationWorker(
@@ -335,23 +370,24 @@ def test_integration_worker_stop(app, worker_setup):
     QTimer.singleShot(500, worker.stop)
     
     # Wait for completion
-    assert wait_for_worker(worker, app), "Worker timed out"
+    assert wait_for_worker(worker, qtbot), "Worker timed out"
     
     # Check for errors
     assert len(error_messages) == 0, f"Errors occurred: {error_messages}"
     
     # Clean up
     worker.deleteLater()
-    app.processEvents()
+    qtbot.wait(100)
 
 
-def test_main_window_integration(app, configured_window, test_files):
+def test_main_window_integration(qtbot, configured_window, test_files, mock_state):
     """Test the integration functionality in MainWindow."""
+    qtbot.addWidget(configured_window)
     # Start integration
     configured_window.start_integration()
     
     # Wait for worker to complete
-    assert wait_for_worker(configured_window.worker, app), "Worker timed out"
+    assert wait_for_worker(configured_window.worker, qtbot), "Worker timed out"
     
     # Check for errors in log
     log_text = configured_window.log_output.toPlainText()
@@ -359,11 +395,13 @@ def test_main_window_integration(app, configured_window, test_files):
     
     # Check output files
     check_output_files(configured_window.output_dir.text())
+    configured_window.close()
 
 
-def test_main_window_plotting(app, temp_dir):
+def test_main_window_plotting(qtbot, temp_dir, mock_state):
     """Test the plotting functionality in MainWindow."""
     window = MainWindow()
+    qtbot.addWidget(window)
     
     # Create test patterns
     patterns = []
@@ -377,4 +415,5 @@ def test_main_window_plotting(app, temp_dir):
     
     # Check that the log doesn't contain any error messages
     log_text = window.log_output.toPlainText()
-    assert "Error plotting patterns" not in log_text 
+    assert "Error plotting patterns" not in log_text
+    window.close() 
