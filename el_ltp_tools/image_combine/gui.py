@@ -551,6 +551,12 @@ class MainWindow(QMainWindow):
 
     def start_conversion(self):
         """Start the image combination process."""
+        # Validate input directory first
+        input_dir = self.input_dir.text()
+        if not os.path.exists(input_dir):
+            self.handle_error(f"Error: Input directory not found - {input_dir}")
+            return
+
         # Get configuration from table
         config = {}
         for row in range(self.config_table.rowCount()):
@@ -571,7 +577,7 @@ class MainWindow(QMainWindow):
 
         # Create worker
         self.worker = ConversionWorker(
-            input_directory=self.input_dir.text(),
+            input_directory=input_dir,
             output_directory=self.output_dir.text(),
             config=json.dumps([config]),
             start_index=self.start_idx.value(),
