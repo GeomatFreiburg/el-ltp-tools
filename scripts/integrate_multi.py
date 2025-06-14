@@ -3,7 +3,7 @@ import os
 import json
 import matplotlib.pyplot as plt
 from typing import Dict
-from . import DetectorConfig, integrate_multi
+from el_ltp_tools.diffraction import DetectorConfig, integrate_multi
 
 
 def parse_args():
@@ -34,12 +34,12 @@ The output will be saved in the output directory with the following structure:
 
 Examples:
     # Using individual detector configurations:
-    python script.py --input-dir /path/to/images --output-dir /path/to/output \\
+    el-ltp-integrate-multi --input-dir /path/to/images --output-dir /path/to/output \\
         --detector detector1 calibration1.json mask1.npy \\
         --detector detector2 calibration2.json mask2.npy
 
     # Using JSON configuration:
-    python script.py --input-dir /path/to/images --output-dir /path/to/output \\
+    el-ltp-integrate-multi --input-dir /path/to/images --output-dir /path/to/output \\
         --config-json '{"detector1": {"calibration": "cal1.json", "mask": "mask1.npy"}}'
 
 The script will:

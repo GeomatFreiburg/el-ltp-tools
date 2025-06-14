@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 
 import fabio
-from ..util.cosmic import detect_cosmic_rays
+from ..cosmic import detect_cosmic_rays
 
 
 def get_tiff_filenames(directory_path: str) -> list[str]:

@@ -27,21 +27,21 @@ The output will be saved in the output directory with the following structure:
 
 Examples:
     # Basic usage with default settings:
-    python script.py --input /path/to/input --output /path/to/output
+    el-ltp-combine-images --input /path/to/input --output /path/to/output
 
     # Process specific folder range with custom prefix:
-    python script.py --input /path/to/input --output /path/to/output -s 5 -e 20 -p my_sample
+    el-ltp-combine-images --input /path/to/input --output /path/to/output -s 5 -e 20 -p my_sample
 
     # Adjust cosmic ray detection parameters:
-    python script.py --input /path/to/input --output /path/to/output \
+    el-ltp-combine-images --input /path/to/input --output /path/to/output \
         --cosmic-sigma 7.0 --cosmic-window 15 --cosmic-iterations 4
 
     # Using individual config arguments:
-    python script.py --input /path/to/input --output /path/to/output \
+    el-ltp-combine-images --input /path/to/input --output /path/to/output \
         --config center 2 --config side 2
 
     # Using JSON configuration:
-    python script.py --input /path/to/input --output /path/to/output \
+    el-ltp-combine-images --input /path/to/input --output /path/to/output \
         --config-json '[{"center": 2, "side": 2}]'
 
 The script will:
@@ -54,7 +54,7 @@ The script will:
 import argparse
 import os
 import json
-from . import process_measurements
+from el_ltp_tools.image_combine import process_measurements
 
 
 def parse_arguments():

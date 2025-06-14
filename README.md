@@ -12,13 +12,28 @@ poetry install
 
 The following command-line tools are available after installation:
 
-### Image Combination Tools
+### Image Processing Tools
 
-1. **el-ltp-combine-images-gui**
+1. **el-ltp-remove-cosmic**
+   - Command-line tool for removing cosmic rays from scientific images
+   - Usage: `el-ltp-remove-cosmic --help`
+   - Example:
+     ```bash
+     # Basic usage
+     el-ltp-remove-cosmic input.tif output.tif
+     
+     # More sensitive detection
+     el-ltp-remove-cosmic input.tif output.tif --sigma 3.0 --window-size 3
+     
+     # Conservative detection for noisy images
+     el-ltp-remove-cosmic input.tif output.tif --sigma 7.0 --window-size 7 --iterations 2
+     ```
+
+2. **el-ltp-combine-images-gui**
    - Graphical interface for combining multiple images
    - Usage: `el-ltp-combine-images-gui`
 
-2. **el-ltp-combine-images**
+3. **el-ltp-combine-images**
    - Command-line tool for combining multiple images
    - Usage: `el-ltp-combine-images --help`
 
@@ -34,6 +49,28 @@ The following command-line tools are available after installation:
 
 ## Example Usage
 
+### Cosmic Ray Removal
+
+The cosmic ray removal tool uses a statistical approach to identify and remove cosmic ray artifacts from scientific images. It works by:
+1. Analyzing local pixel neighborhoods to compute mean and standard deviation
+2. Identifying pixels that deviate significantly from their local statistics
+3. Iteratively refining the detection to catch both strong and weak cosmic rays
+4. Replacing detected cosmic ray pixels with NaN values
+
+Example usage:
+```bash
+# Basic usage with default parameters
+el-ltp-remove-cosmic input.tif output.tif
+
+# More sensitive detection (lower sigma, smaller window)
+el-ltp-remove-cosmic input.tif output.tif --sigma 3.0 --window-size 3
+
+# More aggressive detection with more iterations
+el-ltp-remove-cosmic input.tif output.tif --iterations 5 --min-intensity 100
+
+# Conservative detection for noisy images
+el-ltp-remove-cosmic input.tif output.tif --sigma 7.0 --window-size 7 --iterations 2
+```
 
 ### Multi-Detector Integration
 
@@ -71,6 +108,22 @@ Output will be saved as:
 |-- CaSiO3_2_00001.xy
 |-- CaSiO3_2_00002.xy
 ...
+```
+
+## Project Structure
+
+```
+el-ltp-tools/
+├── el_ltp_tools/          # Core package code
+│   ├── cosmic/           # Cosmic ray detection algorithms
+│   ├── diffraction/      # Diffraction data processing
+│   └── image_combine/    # Image combination utilities
+├── scripts/              # Command-line tools
+│   ├── cosmic/          # Cosmic ray removal script
+│   ├── diffraction/     # Diffraction processing scripts
+│   └── image_combine/   # Image combination scripts
+├── examples/            # Example scripts and usage
+└── tests/              # Test suite
 ```
 
 ## Dependencies
