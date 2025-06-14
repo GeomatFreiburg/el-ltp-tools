@@ -11,13 +11,14 @@ from PIL import Image
 import glob
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def app():
     """Create a QApplication instance."""
     app = QApplication.instance()
     if app is None:
         app = QApplication([])
     yield app
+    app.quit()
 
 
 @pytest.fixture
@@ -101,9 +102,15 @@ def configured_window(app, temp_dir, mock_config_files, test_files):
 def test_main_window_initialization(app):
     """Test that the main window initializes correctly."""
     window = MainWindow()
+    window.show()  # Make sure the window is shown
+    app.processEvents()  # Process any pending events
+    
     assert window.windowTitle() == "EL-LTP Tools - Multi-Detector Integration"
     assert window.config_table.rowCount() == 2  # Default rows
     assert window.config_table.columnCount() == 5  # Name, Calibration, Browse, Mask, Browse
+    
+    window.close()  # Clean up
+    app.processEvents()  # Process any pending events
 
 
 def test_config_table_default_values(app):
