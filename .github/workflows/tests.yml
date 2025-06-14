@@ -22,6 +22,16 @@ jobs:
         python-version: ${{ matrix.python-version }}
         allow-prereleases: true
     
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y xvfb libxcb-xinerama0
+    
+    - name: Start Xvfb
+      run: |
+        Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+        echo "DISPLAY=:99" >> $GITHUB_ENV
+    
     - name: Install Poetry
       uses: snok/install-poetry@v1
       with:

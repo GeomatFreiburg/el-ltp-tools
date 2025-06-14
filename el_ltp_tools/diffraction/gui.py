@@ -28,7 +28,6 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import QThread, pyqtSignal, Qt
 from PyQt6.QtGui import QPainter, QFontMetrics
-from .script import integrate_multi
 from datetime import datetime
 
 
@@ -80,7 +79,6 @@ class IntegrationWorker(QThread):
         self.output_dir = output_dir
         self.file_configs = file_configs
         self._is_running = True
-        self._original_print = print
 
     def stop(self):
         self._is_running = False
@@ -89,16 +87,6 @@ class IntegrationWorker(QThread):
         return self._is_running
 
     def run(self):
-        # Override print to capture output
-        def custom_print(*args, **kwargs):
-            if not self._is_running:
-                return
-            self.progress.emit(" ".join(map(str, args)))
-
-        # Store original print function and replace it
-        import builtins
-        builtins.print = custom_print
-
         try:
             # Check if we should stop before starting
             if not self._is_running:
@@ -107,9 +95,20 @@ class IntegrationWorker(QThread):
             # Create output directory if it doesn't exist
             os.makedirs(self.output_dir, exist_ok=True)
 
-            # Run integration
+            # Import integrate_multi here to ensure we have the latest version
+            from . import integrate_multi
+
+            def progress_callback(msg):
+                if self._is_running:  # Only emit if we're still running
+                    self.progress.emit(msg)
+                    print(f"Progress callback: {msg}")  # Debug print
+
+            # Run integration with progress callback
             integrated_patterns = integrate_multi(
-                self.input_dir, self.output_dir, self.file_configs
+                self.input_dir,
+                self.output_dir,
+                self.file_configs,
+                progress_callback=progress_callback
             )
 
             # Only emit finished if we completed normally (not stopped)
@@ -123,9 +122,6 @@ class IntegrationWorker(QThread):
         except Exception as e:
             if self._is_running:  # Only emit error if we're not stopping
                 self.error.emit(f"Error: An unexpected error occurred - {str(e)}")
-        finally:
-            # Restore original print function
-            builtins.print = self._original_print
 
 
 class MainWindow(QMainWindow):
@@ -532,6 +528,23 @@ class MainWindow(QMainWindow):
         if current_row >= 0:
             self.config_table.removeRow(current_row)
 
+    def get_file_path(self, title, file_filter, start_dir):
+        """Helper function to get a file path using QFileDialog.
+        
+        This is separated out to make it easier to mock in tests.
+        """
+        dialog = QFileDialog(self)
+        dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
+        dialog.setWindowTitle(title)
+        dialog.setNameFilter(file_filter)
+        dialog.setDirectory(start_dir)
+
+        if dialog.exec():
+            file_paths = dialog.selectedFiles()
+            if file_paths:
+                return file_paths[0]
+        return None
+
     def browse_file(self, row, file_type):
         """Open file dialog to select calibration or mask file."""
         if file_type == "calibration":
@@ -551,33 +564,29 @@ class MainWindow(QMainWindow):
                 else self.last_mask_dir
             )
 
-        # Create and configure the file dialog
-        dialog = QFileDialog(self)
-        dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
-        dialog.setWindowTitle(f"Select {file_type} file")
-        dialog.setNameFilter(file_filter)
-        dialog.setDirectory(start_dir)
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            f"Select {file_type} file",
+            start_dir,
+            file_filter
+        )
 
-        if dialog.exec():
-            file_paths = dialog.selectedFiles()
-            if file_paths:
-                file_path = file_paths[0]  # Get the first selected file
-
-                # Update the file path in the table
-                if file_type == "calibration":
-                    item = self.config_table.item(row, 1)
-                    item.setText(file_path)
-                    item.setTextAlignment(
-                        int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                    )
-                    self.last_calibration_dir = os.path.dirname(file_path)
-                else:
-                    item = self.config_table.item(row, 3)
-                    item.setText(file_path)
-                    item.setTextAlignment(
-                        int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                    )
-                    self.last_mask_dir = os.path.dirname(file_path)
+        if file_path:
+            # Update the file path in the table
+            if file_type == "calibration":
+                item = self.config_table.item(row, 1)
+                item.setText(file_path)
+                item.setTextAlignment(
+                    int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                )
+                self.last_calibration_dir = os.path.dirname(file_path)
+            else:
+                item = self.config_table.item(row, 3)
+                item.setText(file_path)
+                item.setTextAlignment(
+                    int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                )
+                self.last_mask_dir = os.path.dirname(file_path)
 
     def get_config_table_data(self):
         """Get the full configuration data from the table."""

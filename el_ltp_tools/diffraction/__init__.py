@@ -49,7 +49,7 @@ def get_sorted_files(base_path: str, keyword: str) -> list[str]:
 
 
 def integrate_multi(
-    input_dir: str, output_dir: str, config: Dict[str, DetectorConfig]
+    input_dir: str, output_dir: str, config: Dict[str, DetectorConfig], progress_callback=None
 ) -> list[tuple[np.ndarray, np.ndarray]]:
     """Process and integrate data from multiple detector positions.
     
@@ -66,17 +66,8 @@ def integrate_multi(
     config : Dict[str, DetectorConfig]
         Dictionary mapping detector position names to their configurations.
         Each configuration must specify calibration and mask file paths.
-        Example:
-        {
-            "center": {
-                "calibration": "path/to/center.poni",
-                "mask": "path/to/center.mask"
-            },
-            "side": {
-                "calibration": "path/to/side.poni",
-                "mask": "path/to/side.mask"
-            }
-        }
+    progress_callback : callable, optional
+        Function to call with progress messages. Should accept a single string argument.
                
     Returns
     -------
@@ -113,7 +104,10 @@ def integrate_multi(
     for i in range(num_files):
         # Get the current file from each configuration
         current_files = [files[i] for files in config_files.values()]
-        print(f"Processing files: {[os.path.basename(f) for f in current_files]}")
+        msg = f"Processing files: {[os.path.basename(f) for f in current_files]}"
+        print(msg)
+        if progress_callback:
+            progress_callback(msg)
         
         # Extract base name from first file (removing configuration name and extension)
         first_file = os.path.basename(current_files[0])
@@ -134,9 +128,12 @@ def integrate_multi(
             output_filename,
             np.column_stack((q, I)),
             header="q(A^-1) I(a.u.)",
-            comments="",
+            comments="# ",
         )
-        print(f"Saved integrated pattern to: {output_filename}")
+        msg = f"Saved integrated pattern to: {output_filename}"
+        print(msg)
+        if progress_callback:
+            progress_callback(msg)
         print()  # Add blank line after each save message
     
     return integrated_patterns 
