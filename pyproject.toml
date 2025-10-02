@@ -20,11 +20,11 @@ dependencies = [
 ]
 
 [tool.poetry.scripts]
-el-ltp-remove-cosmic = "scripts.remove_cosmic:main"
-el-ltp-combine-images = "scripts.combine_images:main"
-el-ltp-integrate-multi = "scripts.integrate_multi:main"
-el-ltp-combine-images-gui = "el_ltp_tools.combine_images.combine_images_gui:main"
-el-ltp-integrate-multi-gui = "el_ltp_tools.diffraction.integrate_multi_gui:main"
+el-cosmic = "scripts.remove_cosmic:main"
+el-combine-images = "scripts.combine_images:main"
+el-integrate = "scripts.integrate_multi:main"
+el-combine-gui = "el_ltp_tools.combine_images.combine_images_gui:main"
+el-integrate-gui = "el_ltp_tools.diffraction.integrate_multi_gui:main"
 
 [tool.poetry]
 packages = [
