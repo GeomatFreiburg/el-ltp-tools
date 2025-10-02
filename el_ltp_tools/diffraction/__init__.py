@@ -37,12 +37,13 @@ def get_sorted_files(base_path: str, keyword: str) -> list[str]:
     list[str]
         List of sorted file paths matching the pattern.
     """
-    pattern = f"{base_path}/*{keyword}*.tif"
-    files = glob.glob(pattern)
+    pattern_tif = f"{base_path}/*{keyword}*.tif"
+    pattern_tiff = f"{base_path}/*{keyword}*.tiff"
+    files = glob.glob(pattern_tif) + glob.glob(pattern_tiff)
 
     # Extract number from filename and sort
     def get_index(filename):
-        match = re.search(r"(\d+)\.tif$", filename)
+        match = re.search(r"(\d+)\.tiff?$", filename)
         return int(match.group(1)) if match else 0
 
     return sorted(files, key=get_index)
@@ -111,7 +112,7 @@ def integrate_multi(
         
         # Extract base name from first file (removing configuration name and extension)
         first_file = os.path.basename(current_files[0])
-        base_name = re.sub(r'_[^_]+_\d+\.tif$', '', first_file)
+        base_name = re.sub(r'_[^_]+_\d+\.tiff?$', '', first_file)
         
         # Load data from all files
         img_data = [fabio.open(img_file).data[::-1] for img_file in current_files]
