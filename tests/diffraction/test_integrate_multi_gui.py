@@ -112,6 +112,7 @@ def configured_window(qapp, temp_dir, mock_config_files, test_files):
     window.output_dir.setText(output_dir)
     
     # Set up configuration
+    window.config_table.setRowCount(2)  # Two configurations: center and side
     window.config_table.item(0, 0).setText("center")  # Set the name
     window.config_table.item(0, 1).setText(mock_config_files["poni"])
     window.config_table.item(0, 3).setText(mock_config_files["mask"])
