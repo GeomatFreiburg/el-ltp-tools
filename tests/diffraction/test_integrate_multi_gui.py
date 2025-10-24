@@ -391,6 +391,7 @@ def test_main_window_integration(qtbot, configured_window, test_files, mock_stat
     
     # Check for errors in log
     log_text = configured_window.log_output.toPlainText()
+    print(log_text)
     assert "Error:" not in log_text, f"Errors occurred: {log_text}"
     
     # Check output files
@@ -405,14 +406,16 @@ def test_main_window_plotting(qtbot, temp_dir, mock_state):
     
     # Create test patterns
     patterns = []
+    pattern_names = []
     for i in range(3):
         q = np.linspace(0, 10, 100)
         I = np.sin(q) + i
         patterns.append((q, I))
-    
+        pattern_names.append(f"Pattern {i+1}")
+
     # Test plotting
-    window.integration_finished(patterns)
-    
+    window.integration_finished(patterns, pattern_names)
+
     # Check that the log doesn't contain any error messages
     log_text = window.log_output.toPlainText()
     assert "Error plotting patterns" not in log_text
