@@ -111,12 +111,13 @@ def test_integrate_multi_output_files(temp_dir, mock_config):
     os.makedirs(output_dir, exist_ok=True)
 
     # Run integration
-    integrated_patterns = integrate_multi(temp_dir, output_dir, mock_config)
+    integrated_patterns, output_filenames = integrate_multi(temp_dir, output_dir, mock_config)
 
     # Check that output files were created
     output_files = os.listdir(output_dir)
     assert len(output_files) == 3  # One file per measurement
     assert all(f.endswith('.xy') for f in output_files)
+    assert set(output_files) == set(os.path.basename(f) for f in output_filenames)
 
     # Check that integrated patterns were returned
     assert len(integrated_patterns) == 3

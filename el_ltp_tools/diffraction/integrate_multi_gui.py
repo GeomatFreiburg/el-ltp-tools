@@ -3,7 +3,8 @@ import os
 import json
 import numpy as np
 import matplotlib
-matplotlib.use('Qt5Agg')  # Set the backend to Qt before importing pyplot
+
+matplotlib.use("Qt5Agg")  # Set the backend to Qt before importing pyplot
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
@@ -70,7 +71,9 @@ class IntegrationWorker(QThread):
     """Worker thread for running the integration process."""
 
     progress = pyqtSignal(str)
-    finished = pyqtSignal(list)  # Changed to emit the integrated patterns
+    finished = pyqtSignal(
+        list, list
+    )  # Changed to emit the integrated patterns and output filenames
     error = pyqtSignal(str)
 
     def __init__(self, input_dir, output_dir, file_configs):
@@ -104,16 +107,16 @@ class IntegrationWorker(QThread):
                     print(f"Progress callback: {msg}")  # Debug print
 
             # Run integration with progress callback
-            integrated_patterns = integrate_multi(
+            integrated_patterns, output_filenames = integrate_multi(
                 self.input_dir,
                 self.output_dir,
                 self.file_configs,
-                progress_callback=progress_callback
+                progress_callback=progress_callback,
             )
 
             # Only emit finished if we completed normally (not stopped)
             if self._is_running:
-                self.finished.emit(integrated_patterns)
+                self.finished.emit(integrated_patterns, output_filenames)
 
         except FileNotFoundError as e:
             self.error.emit(f"Error: File or directory not found - {str(e)}")
@@ -159,7 +162,9 @@ class MainWindow(QMainWindow):
         input_label = QLabel("Input Directory:")
         self.input_dir = QLineEdit(default_input_dir)
         input_browse = QPushButton("Browse...")
-        input_browse.setToolTip("Select directory containing the input diffraction images")
+        input_browse.setToolTip(
+            "Select directory containing the input diffraction images"
+        )
         input_layout = QHBoxLayout()
         input_layout.addWidget(self.input_dir)
         input_layout.addWidget(input_browse)
@@ -170,7 +175,9 @@ class MainWindow(QMainWindow):
         output_label = QLabel("Output Directory:")
         self.output_dir = QLineEdit(default_output_dir)
         output_browse = QPushButton("Browse...")
-        output_browse.setToolTip("Select directory where integrated patterns will be saved")
+        output_browse.setToolTip(
+            "Select directory where integrated patterns will be saved"
+        )
         output_layout = QHBoxLayout()
         output_layout.addWidget(self.output_dir)
         output_layout.addWidget(output_browse)
@@ -234,7 +241,9 @@ class MainWindow(QMainWindow):
             cal_browse = QPushButton("...")
             cal_browse.setFixedWidth(45)
             cal_browse.setStyleSheet("padding: 0px; margin: 0px;")
-            cal_browse.setToolTip("Select calibration file (.poni) for this detector position")
+            cal_browse.setToolTip(
+                "Select calibration file (.poni) for this detector position"
+            )
             cal_browse.clicked.connect(
                 lambda checked, row=i: self.browse_file(row, "calibration")
             )
@@ -242,7 +251,9 @@ class MainWindow(QMainWindow):
             mask_browse = QPushButton("...")
             mask_browse.setFixedWidth(45)
             mask_browse.setStyleSheet("padding: 0px; margin: 0px;")
-            mask_browse.setToolTip("Select mask file (.mask) for this detector position")
+            mask_browse.setToolTip(
+                "Select mask file (.mask) for this detector position"
+            )
             mask_browse.clicked.connect(
                 lambda checked, row=i: self.browse_file(row, "mask")
             )
@@ -365,8 +376,12 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(log_group)
 
         # Connect browse buttons
-        input_browse.clicked.connect(lambda: self.browse_directory(self.input_dir, "Select Input Directory"))
-        output_browse.clicked.connect(lambda: self.browse_directory(self.output_dir, "Select Output Directory"))
+        input_browse.clicked.connect(
+            lambda: self.browse_directory(self.input_dir, "Select Input Directory")
+        )
+        output_browse.clicked.connect(
+            lambda: self.browse_directory(self.output_dir, "Select Output Directory")
+        )
 
         # Initialize worker
         self.worker = None
@@ -454,14 +469,12 @@ class MainWindow(QMainWindow):
 
     def browse_directory(self, line_edit, title):
         """Open file dialog to select a directory.
-        
+
         Args:
             line_edit: The QLineEdit widget to update with the selected directory
             title: The window title for the file dialog
         """
-        directory = QFileDialog.getExistingDirectory(
-            self, title, self.last_directory
-        )
+        directory = QFileDialog.getExistingDirectory(self, title, self.last_directory)
         if directory:
             line_edit.setText(directory)
             self.last_directory = directory
@@ -497,7 +510,9 @@ class MainWindow(QMainWindow):
         cal_browse = QPushButton("...")
         cal_browse.setFixedWidth(45)
         cal_browse.setStyleSheet("padding: 0px; margin: 0px;")
-        cal_browse.setToolTip("Select calibration file (.poni) for this detector position")
+        cal_browse.setToolTip(
+            "Select calibration file (.poni) for this detector position"
+        )
         cal_browse.clicked.connect(
             lambda checked, row=current_row: self.browse_file(row, "calibration")
         )
@@ -530,7 +545,7 @@ class MainWindow(QMainWindow):
 
     def get_file_path(self, title, file_filter, start_dir):
         """Helper function to get a file path using QFileDialog.
-        
+
         This is separated out to make it easier to mock in tests.
         """
         dialog = QFileDialog(self)
@@ -565,10 +580,7 @@ class MainWindow(QMainWindow):
             )
 
         file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            f"Select {file_type} file",
-            start_dir,
-            file_filter
+            self, f"Select {file_type} file", start_dir, file_filter
         )
 
         if file_path:
@@ -664,7 +676,7 @@ class MainWindow(QMainWindow):
             self.start_button.setEnabled(True)
             self.stop_button.setEnabled(False)
 
-    def integration_finished(self, integrated_patterns):
+    def integration_finished(self, integrated_patterns, output_filenames):
         self.start_button.setEnabled(True)
         self.stop_button.setEnabled(False)
         self.log_output.append("")
@@ -678,47 +690,55 @@ class MainWindow(QMainWindow):
         self.log_output.append("=" * 40)
         self.log_output.append("")
 
+        base_output_filenames = [os.path.basename(f) for f in output_filenames]
+
         # Plot the integrated patterns
         try:
             # Create a new dialog window for the plot
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             plot_dialog = QDialog(self)
-            plot_dialog.setWindowTitle(f"EL-LTP Tools - Integrated Diffraction Patterns - {current_time}")
+            plot_dialog.setWindowTitle(
+                f"EL-LTP Tools - Integrated Diffraction Patterns - {current_time}"
+            )
             plot_dialog.resize(1200, 800)
-            plot_dialog.setWindowFlags(plot_dialog.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
-            
+            plot_dialog.setWindowFlags(
+                plot_dialog.windowFlags() | Qt.WindowType.WindowStaysOnTopHint
+            )
+
             # Create layout for the dialog
             layout = QVBoxLayout(plot_dialog)
-            
+
             # Create figure and canvas
             fig = Figure(figsize=(12, 8))
             canvas = FigureCanvas(fig)
-            
+
             # Add navigation toolbar
             toolbar = NavigationToolbar(canvas, plot_dialog)
             layout.addWidget(toolbar)
             layout.addWidget(canvas)
-            
+
             # Create the plot
             ax = fig.add_subplot(111)
-            
+
             # Calculate the offset for vertical spacing
             # Get the maximum intensity across all patterns
             max_intensity = max(max(I) for _, I in integrated_patterns)
             min_intensity = min(min(I) for _, I in integrated_patterns)
-            spacing_offset = (max_intensity - min_intensity) * 0.05  # 5% of data range as spacing
-            
+            spacing_offset = (
+                max_intensity - min_intensity
+            ) * 0.05  # 5% of data range as spacing
+
             for i, (q, I) in enumerate(integrated_patterns):
                 # Add an offset to the intensity that increases with each pattern
                 offset_I = I + (i * spacing_offset)
-                ax.plot(q, offset_I, label=f"Pattern {i+1:04d}")
+                ax.plot(q, offset_I, label=f"{base_output_filenames[i]}")
 
             ax.set_xlabel("q (Å⁻¹)")
             ax.set_ylabel("Intensity (a.u.)")
             ax.set_title("Integrated Diffraction Patterns")
-            ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+            ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
             fig.tight_layout()
-            
+
             # Show the dialog non-modally
             plot_dialog.show()
 

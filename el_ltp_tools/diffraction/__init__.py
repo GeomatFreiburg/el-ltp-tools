@@ -101,6 +101,7 @@ def integrate_multi(
         raise ValueError("Number of files don't match across all configurations!")
     
     integrated_patterns = []
+    output_filenames = []
     # Process each set of files
     for i in range(num_files):
         # Get the current file from each configuration
@@ -125,6 +126,7 @@ def integrate_multi(
         
         # Save the integrated pattern with the base name (index starting from 1)
         output_filename = os.path.join(output_dir, f"{base_name}_{i+1:04d}.xy")
+        output_filenames.append(output_filename)
         np.savetxt(
             output_filename,
             np.column_stack((q, I)),
@@ -137,4 +139,4 @@ def integrate_multi(
             progress_callback(msg)
         print()  # Add blank line after each save message
     
-    return integrated_patterns 
+    return integrated_patterns, output_filenames
